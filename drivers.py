@@ -4,6 +4,7 @@
 Contains drivers for each instrument in use in the laboratory.
 """
 import utils
+import serial
 import serial.tools.list_ports
 import minimalmodbus
 minimalmodbus.BAUDRATE = 9600
@@ -27,16 +28,8 @@ def get_ports():
     :rtype: list, str
     '''
 
-    if sys.platform.startswith('win'):
-        usbports = [comport.device for comport in serial.tools.list_ports.comports()]
-        # usbports = ['COM%s' % (i + 1) for i in range(256)]
-    elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
-        # this excludes your current terminal "/dev/tty"
-        usbports = glob.glob('/dev/tty[A-Za-z]*')
-    elif sys.platform.startswith('darwin'):
-        usbports = glob.glob('/dev/tty.usb*')
-    else:
-        raise EnvironmentError('Unsupported platform')
+
+    usbports = [comport.device for comport in serial.tools.list_ports.comports()]
 
     ports = []
 

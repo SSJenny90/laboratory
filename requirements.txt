@@ -1,6 +1,5 @@
 matplotlib
 numpy
 serial
-serial.tools
 pandas
 scipy
