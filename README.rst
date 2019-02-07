@@ -1,10 +1,10 @@
-Laboratory: A python-based program for controlling laboratory instruments and making electrical impedance measurements
+UofA Electrical Conductivity Laboratory: A python-based program for controlling laboratory instruments and making electrical impedance measurements
 ==================================
 
 Overview
 ========
 
-Laboratory is a program designed to make electrical conductivity measurements of a rock sample at high temperatures through use of impedance spectroscopy and includes the calculation of CO/CO2 or H2/CO2 gas ratios for controlling oxygen fugacity.
+Laboratory is a program designed to measure the electrical conductivity of a rock sample at high temperatures through use of impedance spectroscopy and includes calculation of CO/CO2 or H2/CO2 gas ratios for controlling oxygen fugacity.
 
 The program was designed around the following instruments:
 
@@ -29,7 +29,6 @@ System Requirements
 ==========================
 
 -  Python 3.6+
-
 
 License
 ===============
