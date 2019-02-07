@@ -1,5 +1,8 @@
+pyserial
+pyvisa
+minimalmodbus
+alicat
 matplotlib
 numpy
-serial
 pandas
 scipy
