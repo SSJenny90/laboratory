@@ -5,7 +5,7 @@ Contains drivers for each instrument in use in the laboratory.
 """
 import utils
 import serial
-import serial.tools.list_ports
+# import serial.tools.list_ports
 import minimalmodbus
 minimalmodbus.BAUDRATE = 9600
 minimalmodbus.CLOSE_PORT_AFTER_EACH_CALL = True
