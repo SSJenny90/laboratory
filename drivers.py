@@ -1,10 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Contains drivers for each instrument in use in the laboratory.
+"""This module contains a driver class for each instrument in the laboratory. Instrument classes need not be instantiated directly unless debugging. Device addresses and settings should be adjusted accordingly in config.py
+
+==================  ===========================================================
+Class Objects       Description
+==================  ===========================================================
+AlicatController    driver for each individual flow controller
+DAQ                 driver for the data acqusition unit
+Furnace             driver for the furnace
+LCR                 driver for the LCR meter
+MFC                 housing object for Alicat controllers
+Motor               driver for the motorized stage
+=================== ===========================================================
+
+=================== ===========================================================
+Methods             Description
+=================== ===========================================================
+get_ports           returns a list of aviable ports
+load_instruments    returns an instrument object for each instrument (c)
+reconnect           attempts to reconnect to any instruments that have been disconnected
+=================== ===========================================================
 """
 import utils
-import serial
+# import serial
 from serial.tools import list_ports
 import minimalmodbus
 minimalmodbus.BAUDRATE = 9600
@@ -18,7 +36,6 @@ import numpy as np
 import math
 import config
 import json
-
 logger = utils.lab_logger(__name__)
 
 def get_ports():
@@ -27,35 +44,19 @@ def get_ports():
     :returns: list of available ports
     :rtype: list, str
     '''
+    return [comport.device for comport in list_ports.comports()]
 
-    usbports = [comport.device for comport in list_ports.comports()]
-    ports = []
-    for port in usbports:
-        try:
-            s = serial.Serial(port)
-            s.close()
-            ports.append(port)
-        except (OSError, serial.SerialException):
-            pass
-
-    if not ports:
-        logger.critical('Could not open any serial ports. Check your connections and try again.')
-    else:
-        logger.debug('Found {} serial ports: {}'.format(len(ports),ports))
-    return ports
-
-def _load_instruments():
+def load_instruments():
 
     lcr = LCR()
     mfc = MFC()
     daq = DAQ()
-    # ports = get_ports()
+    ports = get_ports()
     # furnace = Furnace()
     motor = Motor()
-
     return lcr, daq, mfc, furnace, motor
 
-def _reconnect(lab_obj):
+def reconnect(lab_obj):
 
     ports = get_ports()
 
@@ -457,8 +458,7 @@ class DAQ():
         logger.critical('The DAQ has been shutdown and port closed')
 
 class AlicatController(FlowController):
-    """
-    Driver for an individual Mass Flow Controller.
+    """Driver for an individual Mass Flow Controller.
 
     .. note::
 
@@ -533,8 +533,7 @@ class AlicatController(FlowController):
         self.set_massflow(0)
 
 class MFC(AlicatController):
-    """
-    Global driver for the Mass Flow Controllers
+    """Global driver for all Mass Flow Controllers
 
     .. note::
 
@@ -872,9 +871,7 @@ class MFC(AlicatController):
         return math.log10(fo2)
 
 class Furnace():
-    #minimalmodbus.Instrument - copy this into Furnace class if using Super()
-    """
-    Driver for the Eurotherm 3216 Temperature Controller
+    """Driver for the Eurotherm 3216 Temperature Controller
 
     .. note::
        units are in °C
@@ -1121,8 +1118,7 @@ class Furnace():
         self.flush_output()
 
 class Motor():
-    """
-    Driver for the motor controlling the linear stage
+    """Driver for the motor controlling the linear stage
 
     =============== ===========================================================
     Attributes      message

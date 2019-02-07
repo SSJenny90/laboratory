@@ -269,7 +269,7 @@ class Setup():
 
     def reconnect(self):
         """Attempts to reconnect to any instruments that have been disconnected"""
-        drivers._reconnect(self)
+        drivers.reconnect(self)
 
     def load_instruments(self):
         """Loads all the laboratory instruments. Called automatically when calling Setup() without a filename specified.
@@ -278,7 +278,7 @@ class Setup():
         :rtype: instrument objects
         """
         logger.info('Establishing connection with instruments...')
-        self.lcr,self.daq,self.mfc,self.furnace,self.motor = drivers._load_instruments()
+        self.lcr,self.daq,self.mfc,self.furnace,self.motor = drivers.load_instruments()
         print(' ')
 
     def set_fugacity(self,buffer,offset,gas_type):

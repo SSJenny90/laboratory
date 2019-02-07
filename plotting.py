@@ -1,8 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sat Apr 14 16:09:52 2018
-@author: Sam
+Contains plotting tools for use with laboratory data.
+
+======================  ===========================================================
+Class Objects           Description
+======================  ===========================================================
+LabPlots                houses an assortment of plotting tools
+======================= ===========================================================
+
+======================= ===========================================================
+Methods                 Description
+======================= ===========================================================
+impedance_fit           estimates the diameter of the impedance arc based on
+dt_to_hours             converts recorded datetimes to time elapsed
+leastsq_circle          fits a least squares circle to impedance data
+index_temp              index the nearest temperature value
+get_Re_Im               returns the real and imaginary components of complex impedance
+calculate_resistivity   calculates resistivity from impedance spectra and sample
+                        dimensions
+======================= ===========================================================
 """
 import numpy as np
 from scipy import optimize
@@ -14,20 +31,33 @@ import matplotlib.colors as colors
 from matplotlib.offsetbox import AnchoredText
 
 class LabPlots():
-    """Contains an assortment of useful plots for visualising self.data"""
+    """Contains an assortment of useful plots for visualising with the laboratory data object
+
+    ======================  ===========================================================
+    Attributes              Description
+    ======================  ===========================================================
+    data                    the data object from the laboratory
+    time_elapsed            time elapsed since the start of the experiment [in hours]
+    ======================= ===========================================================
+
+    ======================= ===========================================================
+    Methods                 Description
+    ======================= ===========================================================
+    arhhenius               plots log conductivity vs reciprocal temperature [K]
+    cond_time               plots conductivity vs elapsed time
+    cole                    creates a cole-cole plot at a given temperature/s
+    gas                     plots massflow vs elapsed time
+    temperature             plots tref, te1, te2, and target vs elapsed time
+    imp_diameter            plots imp_diameter vs elapsed time
+    cond_fugacity           plots log conductivity vs fugacity
+    voltage                 plots voltage vs elapsed time
+    ======================= ===========================================================
+    """
     def __init__(self,data):
         self.data = data
-        self.t_elapsed = _datetime_to_hours(data.time[0],data.time)
+        self.t_elapsed = dt_to_hours(data.time[0],data.time)
         self.data.thermo.mean = np.average(np.array([data.thermo.te1,data.thermo.te2]),axis=0)
         # self._resistivity = _calculate_conductivity()
-
-    # @property
-    # def conductivity(self):
-    #     return 1/self._resistivity
-
-    # @property
-    # def resistivity(self):
-    #     return self._resistivity
 
     def voltage(self):
         """Plots voltage versus time"""
@@ -88,23 +118,36 @@ class LabPlots():
         :param temp: temperature in degrees C
         :type temp: float/int
         """
+        def circle_fit(Re,Im,ax):
+
+            xc,yc,R,residu = leastsq_circle(Re,Im)
+
+            pi = np.pi
+            theta_fit = np.linspace(0, pi, 180)   #semi circle
+
+            x_fit = xc + R*np.cos(theta_fit)
+            y_fit = yc + R*np.sin(theta_fit)
+
+            ax.plot(x_fit, y_fit,'b-',lw=1,label='lsq_fit') #plot circle as blue line
+            ax.plot([xc],[yc],'bx',mec='y',mew=1,label='fit_center')  #plot center of circle as blue cross
+
         fig = plt.figure('Cole-Cole plot')
         ax = fig.add_subplot(111)
 
         if not isinstance(temp_list,list): temp_list = [temp_list]
 
         for temp in temp_list:
-            [index, Tval] = _get_index(np.array(self.data.thermo.te1),temp)
+            [index, Tval] = index_temp(np.array(self.data.thermo.te1),temp)
             Z = self.data.imp.Z[index][start:end]
             theta = self.data.imp.theta[index][start:end]
-            Re,Im = _return_ReIm(Z,theta)
+            Re,Im = get_Re_Im(Z,theta)
 
             p = ax.scatter(Re,Im,c=self.data.freq[start:end],norm=colors.LogNorm())
 
             ax.set_xlim(0,np.nanmax(Re))
             ax.set_ylim(bottom=0)
             if fit:
-                self._circlefit(Re,Im,ax)
+                circlefit(Re,Im,ax)
                 ax.axis('scaled')
             else:
                 ax.axis('equal')
@@ -151,7 +194,7 @@ class LabPlots():
         for i,val in enumerate(self.data.imp.Z):
             z = self.data.imp.Z[i]
             theta = self.data.imp.theta[i]
-            diameter.append(_impfit(z[1:],theta[1:]))
+            diameter.append(impedance_fit(z[1:],theta[1:]))
 
         fig = plt.figure()
         ax = fig.add_subplot(111)
@@ -181,7 +224,7 @@ class LabPlots():
         fig.tight_layout()
         plt.show()
 
-    def cond_fug(self):
+    def cond_fugacity(self):
         """Plots inverse temperature versus conductivity"""
         return 'This plot is not working yet!'
         imp = self.data.imp
@@ -198,7 +241,7 @@ class LabPlots():
         fig.tight_layout()
         plt.show()
 
-def _impfit(Z,theta):
+def impedance_fit(Z,theta):
 
     Z = np.array(Z)
     theta = np.array(theta)
@@ -221,23 +264,10 @@ def _impfit(Z,theta):
 
     return diameter
 
-def _datetime_to_hours(start,dtlist):
+def dt_to_hours(start,dtlist):
     return [(t-start).total_seconds()/60/60 for t in dtlist]
 
-def _circlefit(Re,Im,ax):
-
-    xc,yc,R,residu = _leastsq_circle(Re,Im)
-
-    pi = np.pi
-    theta_fit = np.linspace(0, pi, 180)   #semi circle
-
-    x_fit = xc + R*np.cos(theta_fit)
-    y_fit = yc + R*np.sin(theta_fit)
-
-    ax.plot(x_fit, y_fit,'b-',lw=1,label='lsq_fit') #plot circle as blue line
-    ax.plot([xc],[yc],'bx',mec='y',mew=1,label='fit_center')  #plot center of circle as blue cross
-
-def _leastsq_circle(x,y):
+def leastsq_circle(x,y):
     #xc - the center of the circle on the x-coordinates
     #yc = center of the circle on the y coordinates
     #R = mean distance to center of circle
@@ -263,35 +293,24 @@ def _leastsq_circle(x,y):
     residu = np.sum((Ri - R)**2)
     return xc, yc, R, residu
 
-def _get_index(T,Tx):
+def index_temp(T,Tx):
     #returns the index of T nearest to the specified temp Tx. For use in colecole plots
     index = np.abs(T - Tx).argmin()
     return [index, T.flat[index]]
 
-def _return_ReIm(Z,theta):
+def get_Re_Im(Z,theta):
     Z = np.array(Z)
     theta = np.array(theta)
-
     Re = np.multiply(Z,np.cos(theta))
     Im = np.absolute(np.multiply(Z,np.sin(theta)))
 
-    # Re,Im = [],[]
-    # for zval,thetaval in zip(Z,theta):
-    #     x = abs(zval*math.cos(thetaval))
-    #     y = abs(zval*math.sin(thetaval))
-    #     Re.append(x)
-    #     Im.append(y)
-
     return Re,Im
 
-def _calculate_conductivity(Z,theta):
+def calculate_resistivity(Z,theta):
+    """Calculates the resistivity of the sample from the resistance and sample dimensions supplied in config.py
     """
-    conductivity = length / area * resistance
-    """
-
-    Re,Im = _return_ReIm(Z,theta)   #convert z and theta to real and imaginary components
-
-    xc,yc,radius,residu = _leastsq_circle(Re,Im) #calculate radius from least squares circle fit
+    Re,Im = get_Re_Im(Z,theta)   #convert z and theta to real and imaginary components
+    xc,yc,radius,residu = leastsq_circle(Re,Im) #calculate radius from least squares circle fit
 
     resistance = 2*radius
     thickness = config.sample_thickness * 10 ** -3
@@ -310,7 +329,7 @@ if __name__ == '__main__':
     z = [1.20E+06,1.38E+05,5.44E+04,9.31E+03,1.16E+03]
     theta = [-1.40E+00,-1.13E+00,-8.10E-01,-1.41E+00,-1.54E+00]
     freq = [1.59E+02,1.59E+03,1.59E+04,1.59E+05,1.59E+06]
-    Re,Im = _return_ReIm(z,theta)   #convert z and theta to real and imaginary components
+    Re,Im = get_Re_Im(z,theta)   #convert z and theta to real and imaginary components
     plt.scatter(Re,Im,c=freq,norm=colors.LogNorm())
     plt.show()
     # print(_calculate_conductivity(z,theta))
