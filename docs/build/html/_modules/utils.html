@@ -1,0 +1,404 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>utils &#8212; Laboratory 0.1 documentation</title>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for utils</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">config</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">serial</span>
+<span class="kn">import</span> <span class="nn">glob</span>
+<span class="kn">import</span> <span class="nn">pickle</span>
+<span class="kn">import</span> <span class="nn">random</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">from</span> <span class="nn">pandas.api.types</span> <span class="k">import</span> <span class="n">is_string_dtype</span><span class="p">,</span> <span class="n">is_numeric_dtype</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">email.mime.multipart</span> <span class="k">import</span> <span class="n">MIMEMultipart</span>
+<span class="kn">from</span> <span class="nn">email.mime.text</span> <span class="k">import</span> <span class="n">MIMEText</span>
+<span class="kn">from</span> <span class="nn">email.mime.base</span> <span class="k">import</span> <span class="n">MIMEBase</span>
+<span class="kn">import</span> <span class="nn">smtplib</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="k">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
+
+<div class="viewcode-block" id="lab_logger"><a class="viewcode-back" href="../utils.html#utils.lab_logger">[docs]</a><span class="k">def</span> <span class="nf">lab_logger</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Sets up logging messages for the laboratory. Sends to both a file and the console by default. Levels for both the file and console can be set to anything defined by the</span>
+<span class="sd">    python logging package (DEBUG,INFO,WARNING,ERROR,CRITICAL). Specified log level AND GREATER will be included. Logfiles can be found in /logfiles/ &quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>    <span class="c1">#define the logger</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="s1">&#39;DEBUG&#39;</span><span class="p">)</span> <span class="c1">#define root loger level</span>
+
+    <span class="c1">#clear any handlers already present. Prevents duplicate messages</span>
+    <span class="k">if</span> <span class="n">logger</span><span class="o">.</span><span class="n">hasHandlers</span><span class="p">():</span> <span class="n">logger</span><span class="o">.</span><span class="n">handlers</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+    <span class="c1">#create a folder for the log files if none exists</span>
+    <span class="n">folder</span> <span class="o">=</span> <span class="s1">&#39;logfiles&#39;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">folder</span><span class="p">):</span> <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">folder</span><span class="p">)</span>
+    <span class="n">filepath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">folder</span><span class="p">,</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}</span><span class="s1">.log&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">name</span><span class="p">,</span><span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%d</span><span class="s1">-%m-%Y_%H%M&#39;</span><span class="p">)))</span>
+
+    <span class="k">def</span> <span class="nf">sorted_ls</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Removes all but the 10 most recent logfiles -- prevent clutter during testing&quot;&quot;&quot;</span>
+        <span class="n">mtime</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">stat</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">f</span><span class="p">))</span><span class="o">.</span><span class="n">st_mtime</span>
+        <span class="n">files</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">path</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="n">mtime</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">10</span><span class="p">]:</span> <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">folder</span><span class="p">,</span><span class="n">f</span><span class="p">))</span>
+    <span class="n">sorted_ls</span><span class="p">(</span><span class="n">folder</span><span class="p">)</span>
+
+    <span class="c1">#setup file handler</span>
+    <span class="n">fh</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">FileHandler</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
+    <span class="n">formatter</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%(asctime)s</span><span class="s1"> - </span><span class="si">%(levelname)s</span><span class="s1">: </span><span class="si">%(message)s</span><span class="s1"> - </span><span class="si">%(name)s</span><span class="s1"> (line </span><span class="si">%(lineno)s</span><span class="s1">)&#39;</span><span class="p">,</span><span class="s1">&#39;</span><span class="si">%d</span><span class="s1">-%m-%y %H:%M.%S&#39;</span><span class="p">)</span>
+    <span class="n">fh</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">formatter</span><span class="p">)</span>
+    <span class="n">fh</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="s1">&#39;DEBUG&#39;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">fh</span><span class="p">)</span>
+
+    <span class="c1">#set up console handler</span>
+    <span class="n">ch</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">()</span>
+    <span class="n">ch</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%(message)s</span><span class="s1">&#39;</span><span class="p">))</span>
+    <span class="n">ch</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="s1">&#39;INFO&#39;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">ch</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">logger</span></div>
+
+<div class="viewcode-block" id="data_logger"><a class="viewcode-back" href="../utils.html#utils.data_logger">[docs]</a><span class="k">def</span> <span class="nf">data_logger</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Sets up the data file in much the same way as the log file.</span>
+<span class="sd">    Data cannot be output to the console. Data file can be found in</span>
+<span class="sd">    /datafiles/&quot;&quot;&quot;</span>
+
+    <span class="n">dlogger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;data_logger&quot;</span><span class="p">)</span>
+    <span class="n">dlogger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="s1">&#39;DEBUG&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">dlogger</span><span class="o">.</span><span class="n">hasHandlers</span><span class="p">():</span> <span class="n">dlogger</span><span class="o">.</span><span class="n">handlers</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+    <span class="n">folder</span> <span class="o">=</span> <span class="s1">&#39;datafiles&#39;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">folder</span><span class="p">):</span> <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">folder</span><span class="p">)</span>
+    <span class="n">filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">folder</span><span class="p">,</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}</span><span class="s1">.txt&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">name</span><span class="p">,</span><span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%d</span><span class="s1">-%B-%y-%H%M&#39;</span><span class="p">)))</span>
+
+    <span class="c1">#set up file handler</span>
+    <span class="n">fh</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">FileHandler</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+    <span class="n">fh</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%(message)s</span><span class="s1">&#39;</span><span class="p">))</span>
+    <span class="n">fh</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="s1">&#39;DEBUG&#39;</span><span class="p">)</span>
+    <span class="n">dlogger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">fh</span><span class="p">)</span>
+
+    <span class="c1">#add header lines to data file</span>
+    <span class="n">dlogger</span><span class="o">.</span><span class="n">critical</span><span class="p">(</span><span class="s1">&#39;start_date: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%A </span><span class="si">%d</span><span class="s1">-%B %Y&#39;</span><span class="p">)))</span>
+    <span class="n">dlogger</span><span class="o">.</span><span class="n">critical</span><span class="p">(</span><span class="s1">&#39;start_time: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%H:%M:%S&#39;</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="n">dlogger</span></div>
+
+<div class="viewcode-block" id="save_obj"><a class="viewcode-back" href="../utils.html#utils.save_obj">[docs]</a><span class="k">def</span> <span class="nf">save_obj</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">filename</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Saves an object instance as a .pkl file for later retrieval. Can be loaded again using :meth:&#39;Utils.load_obj&#39;</span>
+
+<span class="sd">    :param obj: the object instance to be saved</span>
+<span class="sd">    :type obj: class</span>
+
+<span class="sd">    :param filename: name of file</span>
+<span class="sd">    :type filename: str</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span> <span class="o">+</span> <span class="s1">&#39;.pkl&#39;</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">output</span><span class="p">:</span>  <span class="c1"># Overwrites any existing file.</span>
+        <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">pickle</span><span class="o">.</span><span class="n">HIGHEST_PROTOCOL</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="load_obj"><a class="viewcode-back" href="../utils.html#utils.load_obj">[docs]</a><span class="k">def</span> <span class="nf">load_obj</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Loads a .pkl file</span>
+
+<span class="sd">    :param filename: full path to file. must be a .pkl</span>
+<span class="sd">    :type filename: str</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">filename</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.pkl&#39;</span><span class="p">):</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span> <span class="o">+</span> <span class="s1">&#39;.pkl&#39;</span>
+
+    <span class="c1"># for f in filenames:</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="nb">input</span><span class="p">:</span>  <span class="c1"># Overwrites any existing file.</span>
+        <span class="k">return</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="nb">input</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="send_email"><a class="viewcode-back" href="../utils.html#utils.send_email">[docs]</a><span class="k">def</span> <span class="nf">send_email</span><span class="p">(</span><span class="n">toaddr</span><span class="p">,</span><span class="n">message</span><span class="p">,</span><span class="n">cc</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">logfile</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">datafile</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Sends an email to the specified email address. logfile or datafile can</span>
+<span class="sd">    be attached if desired. used mainly for email updates on progress during</span>
+<span class="sd">    long measurement cycles. mailer is geophysicslabnotifications@gmail.com.</span>
+
+<span class="sd">    :param toaddr: full email address of intended recipient</span>
+<span class="sd">    :type toaddr: str</span>
+
+<span class="sd">    :param message: message to include in email</span>
+<span class="sd">    :type message: str</span>
+
+<span class="sd">    :param cc: email can be carbon copied to additional adresses in cc</span>
+<span class="sd">    :type cc: str,list</span>
+
+<span class="sd">    :param logfile: whether to attach the current logfile</span>
+<span class="sd">    :type logfile: boolean</span>
+
+<span class="sd">    :param datafile: whether to attach the current datafile</span>
+<span class="sd">    :type datafile: boolean</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">fromaddr</span> <span class="o">=</span> <span class="s2">&quot;geophysicslabnotifications@gmail.com&quot;</span>
+    <span class="n">pw</span> <span class="o">=</span> <span class="s1">&#39;Laboratory123!&#39;</span>
+
+    <span class="n">msg</span> <span class="o">=</span> <span class="n">MIMEMultipart</span><span class="p">()</span>
+    <span class="n">msg</span><span class="p">[</span><span class="s1">&#39;From&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fromaddr</span>
+    <span class="n">msg</span><span class="p">[</span><span class="s1">&#39;To&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">toaddr</span>
+    <span class="k">if</span> <span class="n">cc</span><span class="p">:</span>
+        <span class="n">msg</span><span class="p">[</span><span class="s1">&#39;Cc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">cc</span>
+    <span class="n">msg</span><span class="p">[</span><span class="s1">&#39;Subject&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;Lab Notification&quot;</span>
+    <span class="n">body</span> <span class="o">=</span> <span class="s1">&#39;Hi,</span><span class="se">\n\n</span><span class="si">{}</span><span class="se">\n\n</span><span class="s1">Cheers,</span><span class="se">\n</span><span class="s1">Your Friendly Lab Assistant&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+    <span class="n">msg</span><span class="o">.</span><span class="n">attach</span><span class="p">(</span><span class="n">MIMEText</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="s1">&#39;plain&#39;</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">logfile</span><span class="p">:</span>
+        <span class="n">part</span> <span class="o">=</span> <span class="n">MIMEBase</span><span class="p">(</span><span class="s1">&#39;application&#39;</span><span class="p">,</span> <span class="s2">&quot;octet-stream&quot;</span><span class="p">)</span>
+        <span class="n">part</span><span class="o">.</span><span class="n">set_payload</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="n">logfile</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+        <span class="n">part</span><span class="o">.</span><span class="n">add_header</span><span class="p">(</span><span class="s1">&#39;Content-Disposition&#39;</span><span class="p">,</span> <span class="s1">&#39;attachment&#39;</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="s1">&#39;controlLog.txt&#39;</span><span class="p">)</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">attach</span><span class="p">(</span><span class="n">part</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">datafile</span><span class="p">:</span>
+        <span class="n">part</span> <span class="o">=</span> <span class="n">MIMEBase</span><span class="p">(</span><span class="s1">&#39;application&#39;</span><span class="p">,</span> <span class="s2">&quot;octet-stream&quot;</span><span class="p">)</span>
+        <span class="n">part</span><span class="o">.</span><span class="n">set_payload</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="n">datafile</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+        <span class="n">part</span><span class="o">.</span><span class="n">add_header</span><span class="p">(</span><span class="s1">&#39;Content-Disposition&#39;</span><span class="p">,</span> <span class="s1">&#39;attachment&#39;</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="s1">&#39;labData.txt&#39;</span><span class="p">)</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">attach</span><span class="p">(</span><span class="n">part</span><span class="p">)</span>
+
+    <span class="n">server</span> <span class="o">=</span> <span class="n">smtplib</span><span class="o">.</span><span class="n">SMTP</span><span class="p">(</span><span class="s1">&#39;smtp.gmail.com&#39;</span><span class="p">,</span> <span class="mi">587</span><span class="p">)</span>
+    <span class="n">server</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;smtp.gmail.com&quot;</span><span class="p">,</span><span class="mi">587</span><span class="p">)</span>
+    <span class="n">server</span><span class="o">.</span><span class="n">ehlo</span><span class="p">()</span>
+    <span class="n">server</span><span class="o">.</span><span class="n">starttls</span><span class="p">()</span>
+    <span class="n">server</span><span class="o">.</span><span class="n">ehlo</span><span class="p">()</span>
+    <span class="n">server</span><span class="o">.</span><span class="n">login</span><span class="p">(</span><span class="n">fromaddr</span><span class="p">,</span> <span class="n">pw</span><span class="p">)</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">as_string</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">cc</span><span class="p">:</span>
+        <span class="n">server</span><span class="o">.</span><span class="n">sendmail</span><span class="p">(</span><span class="n">fromaddr</span><span class="p">,</span> <span class="p">[</span><span class="n">toaddr</span><span class="p">,</span><span class="n">cc</span><span class="p">],</span> <span class="n">text</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">server</span><span class="o">.</span><span class="n">sendmail</span><span class="p">(</span><span class="n">fromaddr</span><span class="p">,</span> <span class="n">toaddr</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span>
+    <span class="n">server</span><span class="o">.</span><span class="n">quit</span></div>
+
+<div class="viewcode-block" id="furnace_profile"><a class="viewcode-back" href="../utils.html#utils.furnace_profile">[docs]</a><span class="k">def</span> <span class="nf">furnace_profile</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Records the temperature of both electrodes (te1 and te2) as the sample is moved</span>
+<span class="sd">    from one end of the stage to the other. Used to find the center of the stage or the xpos of a desired temperature gradient when taking thermopower measurements.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">daq</span><span class="o">.</span><span class="n">configure</span><span class="p">()</span>
+    <span class="c1"># self.furnace.set_temp(300)   #this is best done at a reasonably high temperature</span>
+    <span class="c1"># self.motor.reset()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">motor</span><span class="o">.</span><span class="n">set_xpos</span><span class="p">(</span><span class="mi">4000</span><span class="p">)</span>
+    <span class="n">Utils</span><span class="o">.</span><span class="n">save_obj</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span><span class="s1">&#39;furnace_profile&#39;</span><span class="p">)</span>
+    <span class="n">xpos</span> <span class="o">=</span> <span class="mi">4000</span>
+    <span class="k">while</span> <span class="n">xpos</span> <span class="o">&lt;</span> <span class="mi">6000</span><span class="p">:</span>
+        <span class="n">xpos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">motor</span><span class="o">.</span><span class="n">get_pos</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">xpos</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">xpos</span><span class="p">)</span>
+        <span class="n">vals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">daq</span><span class="o">.</span><span class="n">get_temp</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">thermo</span><span class="o">.</span><span class="n">tref</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">vals</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">thermo</span><span class="o">.</span><span class="n">te1</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">vals</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">thermo</span><span class="o">.</span><span class="n">te2</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">vals</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">motor</span><span class="o">.</span><span class="n">move_mm</span><span class="p">(</span><span class="o">.</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">Utils</span><span class="o">.</span><span class="n">save_obj</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span><span class="s1">&#39;furnace_profile&#39;</span><span class="p">)</span>
+        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">600</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="find_center"><a class="viewcode-back" href="../utils.html#utils.find_center">[docs]</a><span class="k">def</span> <span class="nf">find_center</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;TODO - Attempts to place the sample at the center of the heat source such that</span>
+<span class="sd">    te1 = te2. untested.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">daq</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">daq</span><span class="o">.</span><span class="n">toggle_switch</span><span class="p">(</span><span class="s1">&#39;thermo&#39;</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">daq</span><span class="o">.</span><span class="n">_config_temp</span><span class="p">()</span>
+
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">temp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">daq</span><span class="o">.</span><span class="n">get_temp</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">temp</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;No temperature data collected&#39;</span><span class="p">)</span>
+        <span class="n">te1</span> <span class="o">=</span> <span class="n">temp</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">te2</span> <span class="o">=</span> <span class="n">temp</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="n">te1</span><span class="p">,</span><span class="n">te2</span><span class="p">)</span>
+
+        <span class="n">delta</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">te1</span><span class="o">-</span><span class="n">te2</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">delta</span> <span class="o">&lt;</span> <span class="mf">0.1</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Found center at&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">motor</span><span class="o">.</span><span class="n">get_pos</span><span class="p">())</span>
+            <span class="k">break</span>
+
+        <span class="k">if</span> <span class="n">te1</span> <span class="o">&lt;</span> <span class="n">te2</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">motor</span><span class="o">.</span><span class="n">move_mm</span><span class="p">(</span><span class="o">-</span><span class="mf">0.05</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">te2</span> <span class="o">&lt;</span> <span class="n">te1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">motor</span><span class="o">.</span><span class="n">move_mm</span><span class="p">(</span><span class="mf">0.05</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">motor</span><span class="o">.</span><span class="n">get_pos</span><span class="p">())</span>
+
+        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">600</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="check_controlfile"><a class="viewcode-back" href="../utils.html#utils.check_controlfile">[docs]</a><span class="k">def</span> <span class="nf">check_controlfile</span><span class="p">(</span><span class="n">controlfile</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Checks to make sure the specified controlfile is a valid file that can be used by this program</span>
+
+<span class="sd">    :param controlfile: a loaded control file</span>
+<span class="sd">    :type controlfile: pd.DataFrame</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+    <span class="n">columns</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">controlfile</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">values</span><span class="p">))</span>
+    <span class="n">exp_numeric</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;target_temp&#39;</span><span class="p">,</span><span class="s1">&#39;hold_length&#39;</span><span class="p">,</span><span class="s1">&#39;heat_rate&#39;</span><span class="p">,</span><span class="s1">&#39;interval&#39;</span><span class="p">,</span><span class="s1">&#39;offset&#39;</span><span class="p">]</span>
+    <span class="n">exp_str</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;buffer&#39;</span><span class="p">,</span><span class="s1">&#39;fo2_gas&#39;</span><span class="p">]</span>
+    <span class="n">expected</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">exp_numeric</span><span class="p">,</span> <span class="n">exp_str</span><span class="p">)</span>
+
+    <span class="c1">#check if the headers in controlfile are what is expected</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">columns</span> <span class="o">==</span> <span class="n">expected</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">expected</span><span class="p">):</span>   <span class="c1">#if controlfile has an additional column</span>
+            <span class="n">dif</span> <span class="o">=</span> <span class="n">columns</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">expected</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Found an unexpected additional column/s </span><span class="si">{}</span><span class="s1"> in the control file&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dif</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>       <span class="c1">#if controlfile is missing an expected column</span>
+            <span class="n">dif</span> <span class="o">=</span> <span class="n">expected</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Could not find </span><span class="si">{}</span><span class="s1"> in the control file&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dif</span><span class="p">))</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;    Expected to find </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">expected</span><span class="p">))</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="c1">#if controlfile starts at the temperature of the furnace but was not intended to hold, it can get stuck in a loop. therefore the first value must be a 0. Only matters if no hold_length value was input into the first step</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">controlfile</span><span class="o">.</span><span class="n">hold_length</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+        <span class="n">controlfile</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="s1">&#39;hold_length&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="c1">#check that data types in numeric variables are correct</span>
+    <span class="k">for</span> <span class="n">header</span> <span class="ow">in</span> <span class="n">exp_numeric</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">is_numeric_dtype</span><span class="p">(</span><span class="n">controlfile</span><span class="p">[</span><span class="n">header</span><span class="p">]):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Encountered an unexpected data type in </span><span class="si">{}</span><span class="s1"> - must be numeric&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">header</span><span class="p">))</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="c1">#check that buffer inputs are valid values</span>
+    <span class="n">buffer_types</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;qfm&#39;</span><span class="p">,</span><span class="s1">&#39;fmq&#39;</span><span class="p">,</span><span class="s1">&#39;fqm&#39;</span><span class="p">,</span><span class="s1">&#39;iw&#39;</span><span class="p">,</span><span class="s1">&#39;wm&#39;</span><span class="p">,</span><span class="s1">&#39;mh&#39;</span><span class="p">,</span><span class="s1">&#39;qif&#39;</span><span class="p">,</span><span class="s1">&#39;nno&#39;</span><span class="p">,</span><span class="s1">&#39;mmo&#39;</span><span class="p">,</span><span class="s1">&#39;cco&#39;</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">controlfile</span><span class="o">.</span><span class="n">buffer</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">val</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">buffer_types</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Found an unexpected buffer type:  &#39;</span><span class="si">{}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">val</span><span class="p">))</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;    Must be one of </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">buffer_types</span><span class="p">))</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="c1">#check that fo2_gas inputs are valid values</span>
+    <span class="n">gas_types</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;h2&#39;</span><span class="p">,</span><span class="s1">&#39;co&#39;</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">controlfile</span><span class="o">.</span><span class="n">fo2_gas</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">val</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">gas_types</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Found an unexpected gas type:  &#39;</span><span class="si">{}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">val</span><span class="p">))</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;    Must be one of </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">gas_types</span><span class="p">))</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">return</span> <span class="kc">True</span></div>
+
+<div class="viewcode-block" id="load_frequencies"><a class="viewcode-back" href="../utils.html#utils.load_frequencies">[docs]</a><span class="k">def</span> <span class="nf">load_frequencies</span><span class="p">(</span><span class="nb">min</span><span class="p">,</span><span class="nb">max</span><span class="p">,</span><span class="n">n</span><span class="p">,</span><span class="n">log</span><span class="p">,</span><span class="n">filename</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Creates an np.array of frequency values specified by either min, max and n or a file containing a list of frequencies specified by filename&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">filename</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+            <span class="n">freq</span> <span class="o">=</span> <span class="p">[</span><span class="n">line</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">file</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">around</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">float</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">freq</span><span class="p">]))</span>
+    <span class="k">elif</span> <span class="n">log</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span> <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">around</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">geomspace</span><span class="p">(</span><span class="nb">min</span><span class="p">,</span><span class="nb">max</span><span class="p">,</span><span class="n">n</span><span class="p">))</span>
+    <span class="k">elif</span> <span class="n">log</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span> <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">around</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="nb">min</span><span class="p">,</span><span class="nb">max</span><span class="p">,</span><span class="n">n</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
+
+<span class="k">def</span> <span class="nf">find_indicated</span><span class="p">(</span><span class="n">temperature</span><span class="p">,</span><span class="n">normal</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="c1">#from calibration experiment</span>
+    <span class="n">furnace</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">400</span><span class="p">,</span><span class="mi">500</span><span class="p">,</span><span class="mi">600</span><span class="p">,</span><span class="mi">700</span><span class="p">,</span><span class="mi">800</span><span class="p">,</span><span class="mi">900</span><span class="p">,</span><span class="mi">1000</span><span class="p">])</span>
+    <span class="n">daq</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">253.46</span><span class="p">,</span><span class="mf">335.82</span><span class="p">,</span><span class="mf">422.67</span><span class="p">,</span><span class="mi">512</span><span class="p">,</span><span class="mf">604.5</span><span class="p">,</span><span class="mf">698.7</span><span class="p">,</span><span class="mf">795.3</span><span class="p">])</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">daq</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">daq</span><span class="p">))])</span><span class="o">.</span><span class="n">T</span>
+    <span class="n">m</span><span class="p">,</span><span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">lstsq</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">furnace</span><span class="p">,</span><span class="n">rcond</span><span class="o">=</span><span class="kc">None</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">normal</span><span class="p">:</span> <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">around</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">m</span><span class="p">,</span><span class="n">temperature</span><span class="p">)</span><span class="o">+</span><span class="n">c</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span> <span class="c1">#return a furnace value for given temperature</span>
+    <span class="k">else</span><span class="p">:</span> <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">around</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="n">temperature</span><span class="o">-</span><span class="n">c</span><span class="p">,</span><span class="n">m</span><span class="p">),</span><span class="mi">2</span><span class="p">)</span>    <span class="c1">#return a daq value for given temperature</span>
+
+<span class="k">class</span> <span class="nc">Messages</span><span class="p">():</span>
+    <span class="n">device_error</span> <span class="o">=</span> <span class="s1">&#39;I</span><span class="se">\&#39;</span><span class="s1">ve got some bad news! The </span><span class="si">{}</span><span class="s1"> is no longer sending or receiving messages so I</span><span class="se">\&#39;</span><span class="s1">m going to shut down the lab until you can come take a look.&#39;</span>
+    <span class="n">delayed_start</span> <span class="o">=</span> <span class="s1">&#39;It just ticked over to </span><span class="si">{}</span><span class="s1"> so I</span><span class="se">\&#39;</span><span class="s1">m going to set up the instruments and get things underway.&#39;</span>
+    <span class="n">step_complete</span> <span class="o">=</span> <span class="s2">&quot;Just letting you know that step </span><span class="si">{}</span><span class="s2"> is now complete! I</span><span class="se">\&#39;</span><span class="s2">m going to set the temperature to </span><span class="si">{}</span><span class="s2">C and get started on step </span><span class="si">{}</span><span class="s2">.</span><span class="se">\n\n</span><span class="s2">Estimated completion time for step </span><span class="si">{}</span><span class="s2"> is: </span><span class="si">{}</span><span class="s2">.&quot;</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">Messages</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">delayed_start</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39;0900&#39;</span><span class="p">))</span>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Laboratory</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../laboratory.html">Module Laboratory</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../drivers.html">Module Drivers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data.html">Module Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../plotting.html">Module Plotting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../utils.html">Module Utils</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2019, Sam Jennings.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

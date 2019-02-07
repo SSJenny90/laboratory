@@ -1,0 +1,424 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>plotting &#8212; Laboratory 0.1 documentation</title>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for plotting</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python3</span>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Created on Sat Apr 14 16:09:52 2018</span>
+<span class="sd">@author: Sam</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="k">import</span> <span class="n">optimize</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">from</span> <span class="nn">utils</span> <span class="k">import</span> <span class="o">*</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">matplotlib.colors</span> <span class="k">as</span> <span class="nn">colors</span>
+<span class="kn">from</span> <span class="nn">matplotlib.offsetbox</span> <span class="k">import</span> <span class="n">AnchoredText</span>
+
+<div class="viewcode-block" id="LabPlots"><a class="viewcode-back" href="../plotting.html#plotting.LabPlots">[docs]</a><span class="k">class</span> <span class="nc">LabPlots</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Contains an assortment of useful plots for visualising self.data&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">data</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">t_elapsed</span> <span class="o">=</span> <span class="n">_datetime_to_hours</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">data</span><span class="o">.</span><span class="n">time</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">thermo</span><span class="o">.</span><span class="n">mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">average</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">data</span><span class="o">.</span><span class="n">thermo</span><span class="o">.</span><span class="n">te1</span><span class="p">,</span><span class="n">data</span><span class="o">.</span><span class="n">thermo</span><span class="o">.</span><span class="n">te2</span><span class="p">]),</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="c1"># self._resistivity = _calculate_conductivity()</span>
+
+    <span class="c1"># @property</span>
+    <span class="c1"># def conductivity(self):</span>
+    <span class="c1">#     return 1/self._resistivity</span>
+
+    <span class="c1"># @property</span>
+    <span class="c1"># def resistivity(self):</span>
+    <span class="c1">#     return self._resistivity</span>
+
+<div class="viewcode-block" id="LabPlots.voltage"><a class="viewcode-back" href="../plotting.html#plotting.LabPlots.voltage">[docs]</a>    <span class="k">def</span> <span class="nf">voltage</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Plots voltage versus time&quot;&quot;&quot;</span>
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="s1">&#39;Voltage&#39;</span><span class="p">)</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_elapsed</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">thermo</span><span class="o">.</span><span class="n">volt</span><span class="p">,</span><span class="s1">&#39;rx&#39;</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Voltage [mV]&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="n">direction</span><span class="o">=</span><span class="s1">&#39;in&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Time Elapsed [hours]&#39;</span><span class="p">)</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="LabPlots.cond_time"><a class="viewcode-back" href="../plotting.html#plotting.LabPlots.cond_time">[docs]</a>    <span class="k">def</span> <span class="nf">cond_time</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Plots conductivity versus time&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s1">&#39;This plot is not working yet!&#39;</span>
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="s1">&#39;Conductivity&#39;</span><span class="p">)</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_elapsed</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">imp</span><span class="o">.</span><span class="n">cond</span><span class="p">,</span><span class="s1">&#39;rx&#39;</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Conductivity [S]&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="n">direction</span><span class="o">=</span><span class="s1">&#39;in&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Time [min]&#39;</span><span class="p">)</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="LabPlots.temperature"><a class="viewcode-back" href="../plotting.html#plotting.LabPlots.temperature">[docs]</a>    <span class="k">def</span> <span class="nf">temperature</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Plots furnace indicated and target temperature, thermocouple temperature and thermistor self.data versus time elapsed&quot;&quot;&quot;</span>
+        <span class="n">thermo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">thermo</span>
+        <span class="n">temp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">temp</span>
+
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="s1">&#39;Temperature&#39;</span><span class="p">)</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_elapsed</span><span class="p">,</span><span class="n">thermo</span><span class="o">.</span><span class="n">tref</span><span class="p">,</span><span class="s1">&#39;r-&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_elapsed</span><span class="p">,</span><span class="n">thermo</span><span class="o">.</span><span class="n">te1</span><span class="p">,</span><span class="s1">&#39;b.&#39;</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;Te1&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_elapsed</span><span class="p">,</span><span class="n">thermo</span><span class="o">.</span><span class="n">te2</span><span class="p">,</span><span class="s1">&#39;g.&#39;</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;Te2&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_elapsed</span><span class="p">,</span><span class="n">temp</span><span class="o">.</span><span class="n">target</span><span class="p">,</span><span class="s1">&#39;y&#39;</span><span class="p">,</span><span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;Target temperature&#39;</span><span class="p">)</span>
+        <span class="c1"># ax.plot(self.t_elapsed,temp.indicated,&#39;m.&#39;,label=&#39;Furnace indicated&#39;)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">thermo</span><span class="o">.</span><span class="n">tref</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="mi">5</span><span class="p">,</span><span class="s1">&#39;Tref&#39;</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;red&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">temp</span><span class="o">.</span><span class="n">target</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="mi">5</span><span class="p">,</span><span class="s1">&#39;Target&#39;</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;y&#39;</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$Temperature [\circ C]$&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="n">bottom</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Time Elapsed [Hours]&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">left</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="n">direction</span><span class="o">=</span><span class="s1">&#39;in&#39;</span><span class="p">)</span>
+        <span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="LabPlots.cole"><a class="viewcode-back" href="../plotting.html#plotting.LabPlots.cole">[docs]</a>    <span class="k">def</span> <span class="nf">cole</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">temp_list</span><span class="p">,</span><span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">end</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">fit</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Creates a Cole-Cole plot (imaginary versus real impedance) at a given temperature. Finds the available self.data to the temperature specified by &#39;temp&#39;. A linear least squares circle fit can be added by setting fit=True.</span>
+
+<span class="sd">        :param temp: temperature in degrees C</span>
+<span class="sd">        :type temp: float/int</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="s1">&#39;Cole-Cole plot&#39;</span><span class="p">)</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">temp_list</span><span class="p">,</span><span class="nb">list</span><span class="p">):</span> <span class="n">temp_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">temp_list</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">temp</span> <span class="ow">in</span> <span class="n">temp_list</span><span class="p">:</span>
+            <span class="p">[</span><span class="n">index</span><span class="p">,</span> <span class="n">Tval</span><span class="p">]</span> <span class="o">=</span> <span class="n">_get_index</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">thermo</span><span class="o">.</span><span class="n">te1</span><span class="p">),</span><span class="n">temp</span><span class="p">)</span>
+            <span class="n">Z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">imp</span><span class="o">.</span><span class="n">Z</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span>
+            <span class="n">theta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">imp</span><span class="o">.</span><span class="n">theta</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span>
+            <span class="n">Re</span><span class="p">,</span><span class="n">Im</span> <span class="o">=</span> <span class="n">_return_ReIm</span><span class="p">(</span><span class="n">Z</span><span class="p">,</span><span class="n">theta</span><span class="p">)</span>
+
+            <span class="n">p</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">Re</span><span class="p">,</span><span class="n">Im</span><span class="p">,</span><span class="n">c</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">freq</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">],</span><span class="n">norm</span><span class="o">=</span><span class="n">colors</span><span class="o">.</span><span class="n">LogNorm</span><span class="p">())</span>
+
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">nanmax</span><span class="p">(</span><span class="n">Re</span><span class="p">))</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="n">bottom</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">fit</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_circlefit</span><span class="p">(</span><span class="n">Re</span><span class="p">,</span><span class="n">Im</span><span class="p">,</span><span class="n">ax</span><span class="p">)</span>
+                <span class="n">ax</span><span class="o">.</span><span class="n">axis</span><span class="p">(</span><span class="s1">&#39;scaled&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">ax</span><span class="o">.</span><span class="n">axis</span><span class="p">(</span><span class="s1">&#39;equal&#39;</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;-Im(Z)&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Re(Z)&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">ticklabel_format</span><span class="p">(</span><span class="n">style</span><span class="o">=</span><span class="s1">&#39;sci&#39;</span><span class="p">,</span><span class="n">scilimits</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">),</span><span class="n">axis</span><span class="o">=</span><span class="s1">&#39;both&#39;</span><span class="p">)</span>
+
+        <span class="n">atxt</span> <span class="o">=</span> <span class="n">AnchoredText</span><span class="p">(</span><span class="s1">&#39;@ &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Tval</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;$^\circ$ C&#39;</span><span class="p">,</span><span class="n">loc</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">add_artist</span><span class="p">(</span><span class="n">atxt</span><span class="p">)</span>
+
+        <span class="n">cb</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span><span class="n">orientation</span><span class="o">=</span><span class="s2">&quot;horizontal&quot;</span><span class="p">)</span>
+        <span class="n">cb</span><span class="o">.</span><span class="n">set_label</span><span class="p">(</span><span class="s1">&#39;Frequency&#39;</span><span class="p">)</span>
+        <span class="n">cb</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">invert_xaxis</span><span class="p">()</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="LabPlots.gas"><a class="viewcode-back" href="../plotting.html#plotting.LabPlots.gas">[docs]</a>    <span class="k">def</span> <span class="nf">gas</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="s2">&quot;Plots mass_flow self.data for all gases versus time elapsed&quot;</span>
+        <span class="n">h2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">gas</span><span class="o">.</span><span class="n">h2</span><span class="o">.</span><span class="n">mass_flow</span><span class="p">)</span>
+        <span class="n">co2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">gas</span><span class="o">.</span><span class="n">co2</span><span class="o">.</span><span class="n">mass_flow</span><span class="p">)</span>
+        <span class="n">co_a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">gas</span><span class="o">.</span><span class="n">co_a</span><span class="o">.</span><span class="n">mass_flow</span><span class="p">)</span>
+        <span class="n">co_b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">gas</span><span class="o">.</span><span class="n">co_b</span><span class="o">.</span><span class="n">mass_flow</span><span class="p">)</span>
+
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_elapsed</span><span class="p">,</span><span class="n">h2</span><span class="p">,</span><span class="s1">&#39;m-&#39;</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;H2&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_elapsed</span><span class="p">,</span><span class="n">co2</span><span class="p">,</span><span class="s1">&#39;b-&#39;</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;CO2&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_elapsed</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">co_a</span><span class="p">,</span><span class="n">co_b</span><span class="p">),</span><span class="s1">&#39;g-&#39;</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;CO_total&#39;</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Gas concentrations [%]&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Time elapsed [hours]&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="n">direction</span><span class="o">=</span><span class="s1">&#39;in&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="n">bottom</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="LabPlots.imp_diameter"><a class="viewcode-back" href="../plotting.html#plotting.LabPlots.imp_diameter">[docs]</a>    <span class="k">def</span> <span class="nf">imp_diameter</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Plots the impedance diameter versus time_elapsed&quot;&quot;&quot;</span>
+
+        <span class="n">diameter</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">val</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">imp</span><span class="o">.</span><span class="n">Z</span><span class="p">):</span>
+            <span class="n">z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">imp</span><span class="o">.</span><span class="n">Z</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">theta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">imp</span><span class="o">.</span><span class="n">theta</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">diameter</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_impfit</span><span class="p">(</span><span class="n">z</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span><span class="n">theta</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span>
+
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_elapsed</span><span class="p">,</span><span class="n">diameter</span><span class="p">,</span><span class="s1">&#39;r.&#39;</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Time Elapsed [hours]&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$Diameter [\Omega$]&#39;</span><span class="p">)</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="LabPlots.arrhenius"><a class="viewcode-back" href="../plotting.html#plotting.LabPlots.arrhenius">[docs]</a>    <span class="k">def</span> <span class="nf">arrhenius</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Plots inverse temperature versus conductivity&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s1">&#39;This plot is not working yet!&#39;</span>
+        <span class="n">thermo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">thermo</span>
+        <span class="n">imp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">imp</span>
+
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="s1">&#39;Arrhenius Diagram&#39;</span><span class="p">)</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">thermo</span><span class="o">.</span><span class="n">mean</span><span class="o">+</span><span class="mf">273.18</span><span class="p">,</span><span class="n">imp</span><span class="o">.</span><span class="n">conductivity</span><span class="p">,</span><span class="s1">&#39;b-&#39;</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;temp&#39;</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Conductivity [S/m]&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Temperature [1000/K]&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="n">direction</span><span class="o">=</span><span class="s1">&#39;in&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">invert_xaxis</span><span class="p">()</span>
+        <span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="LabPlots.cond_fug"><a class="viewcode-back" href="../plotting.html#plotting.LabPlots.cond_fug">[docs]</a>    <span class="k">def</span> <span class="nf">cond_fug</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Plots inverse temperature versus conductivity&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s1">&#39;This plot is not working yet!&#39;</span>
+        <span class="n">imp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">imp</span>
+
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="s1">&#39;Fugacity&#39;</span><span class="p">)</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">fugacity</span><span class="p">,</span><span class="n">imp</span><span class="o">.</span><span class="n">conductivity</span><span class="p">,</span><span class="s1">&#39;b-&#39;</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;fugacity&#39;</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Conductivity [S/m]&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;log10 Fugacity [Pa]&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="n">direction</span><span class="o">=</span><span class="s1">&#39;in&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">invert_xaxis</span><span class="p">()</span>
+        <span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div></div>
+
+<span class="k">def</span> <span class="nf">_impfit</span><span class="p">(</span><span class="n">Z</span><span class="p">,</span><span class="n">theta</span><span class="p">):</span>
+
+    <span class="n">Z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span>
+    <span class="n">theta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span>
+
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">Z</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">theta</span><span class="p">))</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">Z</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">theta</span><span class="p">))</span>
+
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">20</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">y</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="n">y</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">y</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">y</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">2</span><span class="p">]:</span>
+            <span class="k">break</span>
+
+    <span class="n">i</span> <span class="o">=</span> <span class="n">i</span><span class="o">-</span><span class="mi">1</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">x</span><span class="p">[:</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="mi">2</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">A</span><span class="p">)</span><span class="o">**-</span><span class="mi">1</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">A</span><span class="p">,(</span><span class="n">x</span><span class="p">[:</span><span class="n">i</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">y</span><span class="p">[:</span><span class="n">i</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+    <span class="n">diameter</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">r</span>
+
+    <span class="k">return</span> <span class="n">diameter</span>
+
+<span class="k">def</span> <span class="nf">_datetime_to_hours</span><span class="p">(</span><span class="n">start</span><span class="p">,</span><span class="n">dtlist</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">[(</span><span class="n">t</span><span class="o">-</span><span class="n">start</span><span class="p">)</span><span class="o">.</span><span class="n">total_seconds</span><span class="p">()</span><span class="o">/</span><span class="mi">60</span><span class="o">/</span><span class="mi">60</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">dtlist</span><span class="p">]</span>
+
+<span class="k">def</span> <span class="nf">_circlefit</span><span class="p">(</span><span class="n">Re</span><span class="p">,</span><span class="n">Im</span><span class="p">,</span><span class="n">ax</span><span class="p">):</span>
+
+    <span class="n">xc</span><span class="p">,</span><span class="n">yc</span><span class="p">,</span><span class="n">R</span><span class="p">,</span><span class="n">residu</span> <span class="o">=</span> <span class="n">_leastsq_circle</span><span class="p">(</span><span class="n">Re</span><span class="p">,</span><span class="n">Im</span><span class="p">)</span>
+
+    <span class="n">pi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span>
+    <span class="n">theta_fit</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">pi</span><span class="p">,</span> <span class="mi">180</span><span class="p">)</span>   <span class="c1">#semi circle</span>
+
+    <span class="n">x_fit</span> <span class="o">=</span> <span class="n">xc</span> <span class="o">+</span> <span class="n">R</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">theta_fit</span><span class="p">)</span>
+    <span class="n">y_fit</span> <span class="o">=</span> <span class="n">yc</span> <span class="o">+</span> <span class="n">R</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">theta_fit</span><span class="p">)</span>
+
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x_fit</span><span class="p">,</span> <span class="n">y_fit</span><span class="p">,</span><span class="s1">&#39;b-&#39;</span><span class="p">,</span><span class="n">lw</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;lsq_fit&#39;</span><span class="p">)</span> <span class="c1">#plot circle as blue line</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">([</span><span class="n">xc</span><span class="p">],[</span><span class="n">yc</span><span class="p">],</span><span class="s1">&#39;bx&#39;</span><span class="p">,</span><span class="n">mec</span><span class="o">=</span><span class="s1">&#39;y&#39;</span><span class="p">,</span><span class="n">mew</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;fit_center&#39;</span><span class="p">)</span>  <span class="c1">#plot center of circle as blue cross</span>
+
+<span class="k">def</span> <span class="nf">_leastsq_circle</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">):</span>
+    <span class="c1">#xc - the center of the circle on the x-coordinates</span>
+    <span class="c1">#yc = center of the circle on the y coordinates</span>
+    <span class="c1">#R = mean distance to center of circle</span>
+
+    <span class="k">def</span> <span class="nf">_calc_R</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span> <span class="n">xc</span><span class="p">,</span> <span class="n">yc</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; calculate the distance of each 2D points from the center (xc, yc) &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">x</span><span class="o">-</span><span class="n">xc</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="p">(</span><span class="n">y</span><span class="o">-</span><span class="n">yc</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_f</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;calculate the algebraic distance between the self.data points and the mean circle centered at c=(xc, yc) &quot;&quot;&quot;</span>
+        <span class="n">Ri</span> <span class="o">=</span> <span class="n">_calc_R</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="o">*</span><span class="n">c</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_calc_R</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="o">*</span><span class="n">c</span><span class="p">)</span> <span class="o">-</span> <span class="n">Ri</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+
+    <span class="c1"># coordinates of the barycenter</span>
+    <span class="n">x_m</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="n">y_m</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+
+    <span class="n">center_estimate</span> <span class="o">=</span> <span class="n">x_m</span><span class="p">,</span> <span class="n">y_m</span>
+    <span class="n">center</span><span class="p">,</span> <span class="n">ier</span> <span class="o">=</span> <span class="n">optimize</span><span class="o">.</span><span class="n">leastsq</span><span class="p">(</span><span class="n">_f</span><span class="p">,</span> <span class="n">center_estimate</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">))</span>
+    <span class="n">xc</span><span class="p">,</span> <span class="n">yc</span> <span class="o">=</span> <span class="n">center</span>
+    <span class="n">Ri</span> <span class="o">=</span> <span class="n">_calc_R</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="o">*</span><span class="n">center</span><span class="p">)</span>    <span class="c1">#distance to center for each point</span>
+    <span class="n">R</span> <span class="o">=</span> <span class="n">Ri</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>    <span class="c1">#mean representing radius of the circle</span>
+    <span class="n">residu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">Ri</span> <span class="o">-</span> <span class="n">R</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">xc</span><span class="p">,</span> <span class="n">yc</span><span class="p">,</span> <span class="n">R</span><span class="p">,</span> <span class="n">residu</span>
+
+<span class="k">def</span> <span class="nf">_get_index</span><span class="p">(</span><span class="n">T</span><span class="p">,</span><span class="n">Tx</span><span class="p">):</span>
+    <span class="c1">#returns the index of T nearest to the specified temp Tx. For use in colecole plots</span>
+    <span class="n">index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">T</span> <span class="o">-</span> <span class="n">Tx</span><span class="p">)</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">index</span><span class="p">,</span> <span class="n">T</span><span class="o">.</span><span class="n">flat</span><span class="p">[</span><span class="n">index</span><span class="p">]]</span>
+
+<span class="k">def</span> <span class="nf">_return_ReIm</span><span class="p">(</span><span class="n">Z</span><span class="p">,</span><span class="n">theta</span><span class="p">):</span>
+    <span class="n">Z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span>
+    <span class="n">theta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span>
+
+    <span class="n">Re</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">Z</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">theta</span><span class="p">))</span>
+    <span class="n">Im</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">absolute</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">Z</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">theta</span><span class="p">)))</span>
+
+    <span class="c1"># Re,Im = [],[]</span>
+    <span class="c1"># for zval,thetaval in zip(Z,theta):</span>
+    <span class="c1">#     x = abs(zval*math.cos(thetaval))</span>
+    <span class="c1">#     y = abs(zval*math.sin(thetaval))</span>
+    <span class="c1">#     Re.append(x)</span>
+    <span class="c1">#     Im.append(y)</span>
+
+    <span class="k">return</span> <span class="n">Re</span><span class="p">,</span><span class="n">Im</span>
+
+<div class="viewcode-block" id="_calculate_conductivity"><a class="viewcode-back" href="../plotting.html#plotting._calculate_conductivity">[docs]</a><span class="k">def</span> <span class="nf">_calculate_conductivity</span><span class="p">(</span><span class="n">Z</span><span class="p">,</span><span class="n">theta</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    conductivity = length / area * resistance</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">Re</span><span class="p">,</span><span class="n">Im</span> <span class="o">=</span> <span class="n">_return_ReIm</span><span class="p">(</span><span class="n">Z</span><span class="p">,</span><span class="n">theta</span><span class="p">)</span>   <span class="c1">#convert z and theta to real and imaginary components</span>
+
+    <span class="n">xc</span><span class="p">,</span><span class="n">yc</span><span class="p">,</span><span class="n">radius</span><span class="p">,</span><span class="n">residu</span> <span class="o">=</span> <span class="n">_leastsq_circle</span><span class="p">(</span><span class="n">Re</span><span class="p">,</span><span class="n">Im</span><span class="p">)</span> <span class="c1">#calculate radius from least squares circle fit</span>
+
+    <span class="n">resistance</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">radius</span>
+    <span class="n">thickness</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">sample_thickness</span> <span class="o">*</span> <span class="mi">10</span> <span class="o">**</span> <span class="o">-</span><span class="mi">3</span>
+    <span class="n">radius</span> <span class="o">=</span> <span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">sample_diameter</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="mi">10</span> <span class="o">**</span> <span class="o">-</span><span class="mi">3</span>
+    <span class="n">area</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">radius</span><span class="o">**</span><span class="mi">2</span>
+
+    <span class="k">return</span> <span class="n">thickness</span> <span class="o">/</span> <span class="n">area</span> <span class="o">*</span> <span class="n">resistance</span></div>
+
+
+
+
+
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="p">[</span><span class="mf">1.20E+06</span><span class="p">,</span><span class="mf">1.38E+05</span><span class="p">,</span><span class="mf">5.44E+04</span><span class="p">,</span><span class="mf">9.31E+03</span><span class="p">,</span><span class="mf">1.16E+03</span><span class="p">]</span>
+    <span class="n">theta</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mf">1.40E+00</span><span class="p">,</span><span class="o">-</span><span class="mf">1.13E+00</span><span class="p">,</span><span class="o">-</span><span class="mf">8.10E-01</span><span class="p">,</span><span class="o">-</span><span class="mf">1.41E+00</span><span class="p">,</span><span class="o">-</span><span class="mf">1.54E+00</span><span class="p">]</span>
+    <span class="n">freq</span> <span class="o">=</span> <span class="p">[</span><span class="mf">1.59E+02</span><span class="p">,</span><span class="mf">1.59E+03</span><span class="p">,</span><span class="mf">1.59E+04</span><span class="p">,</span><span class="mf">1.59E+05</span><span class="p">,</span><span class="mf">1.59E+06</span><span class="p">]</span>
+    <span class="n">Re</span><span class="p">,</span><span class="n">Im</span> <span class="o">=</span> <span class="n">_return_ReIm</span><span class="p">(</span><span class="n">z</span><span class="p">,</span><span class="n">theta</span><span class="p">)</span>   <span class="c1">#convert z and theta to real and imaginary components</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">Re</span><span class="p">,</span><span class="n">Im</span><span class="p">,</span><span class="n">c</span><span class="o">=</span><span class="n">freq</span><span class="p">,</span><span class="n">norm</span><span class="o">=</span><span class="n">colors</span><span class="o">.</span><span class="n">LogNorm</span><span class="p">())</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+    <span class="c1"># print(_calculate_conductivity(z,theta))</span>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Laboratory</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../laboratory.html">Module Laboratory</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../drivers.html">Module Drivers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data.html">Module Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../plotting.html">Module Plotting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../utils.html">Module Utils</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2019, Sam Jennings.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,7 @@
+This is makeindex, version 2.15 [TeX Live 2018/W32TeX] (kpathsea + Thai support).
+Scanning style file ./python.ist.......done (7 attributes redefined, 0 ignored).
+Scanning input file Laboratory.idx....done (115 entries accepted, 0 rejected).
+Sorting entries....done (819 comparisons).
+Generating output file Laboratory.ind....done (175 lines written, 0 warnings).
+Output written in Laboratory.ind.
+Transcript written in Laboratory.ilg.
