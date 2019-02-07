@@ -3,6 +3,8 @@
 logfiles/
 datafiles/
 test.py
+docs/logfiles/
+docs/build/
 
 # Compiled source #
 ###################
