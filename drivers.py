@@ -5,7 +5,7 @@ Contains drivers for each instrument in use in the laboratory.
 """
 import utils
 import serial
-# import serial.tools.list_ports
+from serial.tools import list_ports
 import minimalmodbus
 minimalmodbus.BAUDRATE = 9600
 minimalmodbus.CLOSE_PORT_AFTER_EACH_CALL = True
@@ -28,11 +28,8 @@ def get_ports():
     :rtype: list, str
     '''
 
-
-    usbports = [comport.device for comport in serial.tools.list_ports.comports()]
-
+    usbports = [comport.device for comport in list_ports.comports()]
     ports = []
-
     for port in usbports:
         try:
             s = serial.Serial(port)
