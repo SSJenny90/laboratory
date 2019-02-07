@@ -23,7 +23,7 @@ The program was designed around the following instruments:
 Documentation
 =============
 
-
+https://uofa-electrical-conductivity-laboratory.readthedocs.io
 
 System Requirements
 ==========================
