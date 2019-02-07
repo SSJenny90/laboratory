@@ -1,3 +1,9 @@
+# Local files and folders #
+#################
+logfiles/
+datafiles/
+test.py
+
 # Compiled source #
 ###################
 *.com
@@ -7,6 +13,7 @@
 *.o
 *.so
 *.ini
+
 
 # Packages #
 ############
