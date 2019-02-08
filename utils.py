@@ -261,13 +261,13 @@ def check_controlfile(controlfile):
     return True
 
 def load_frequencies(min,max,n,log,filename):
-    """Creates an np.array of frequency values specified by either min, max and n or a file containing a list of frequencies specified by filename"""
+    """Creates a list of frequency values specified by either min, max and n or a file containing a list of frequencies specified by filename"""
     if filename is not None:
         with open(filename) as file:
             freq = [line.rstrip() for line in file]
         return np.around(np.array([float(f) for f in freq]))
-    elif log is True: return np.around(np.geomspace(min,max,n))
-    elif log is False: return np.around(np.linspace(min,max,n))
+    elif log is True: return np.around(np.geomspace(min,max,n)).to_list()
+    elif log is False: return np.around(np.linspace(min,max,n)).to_list()
     else:
         return False
 

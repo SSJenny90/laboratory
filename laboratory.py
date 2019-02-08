@@ -1,7 +1,7 @@
 import config
 import plotting
-import utils
-import drivers
+from utils import loggers, notifications
+from drivers import load_instruments
 import data
 import os
 import time
@@ -12,7 +12,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 plt.ion()
-logger = utils.lab_logger(__name__)
+logger = loggers.lab(__name__)
 
 class Setup():
     """
@@ -566,7 +566,7 @@ class Setup():
 
         #set up the data logger
         self.dlogger = utils.data_logger()
-        self.dlogger.critical('frequencies: {}\n'.format(self.data.freq))
+        self.dlogger.critical('frequencies: {}\n'.format(self.data.freq.to_list()))
         self.data.filename = self.dlogger.handlers[0].baseFilename
 
         #configure instruments

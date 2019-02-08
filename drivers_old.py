@@ -1,42 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """This module contains a driver class for each instrument in the laboratory. Instrument classes need not be instantiated directly unless debugging. Device addresses and settings should be adjusted accordingly in config.py
-
-==================  ===========================================================
-Class Objects       Description
-==================  ===========================================================
-AlicatController    driver for each individual flow controller
-DAQ                 driver for the data acqusition unit
-Furnace             driver for the furnace
-LCR                 driver for the LCR meter
-MFC                 housing object for Alicat controllers
-Motor               driver for the motorized stage
-=================== ===========================================================
-
-=================== ===========================================================
-Methods             Description
-=================== ===========================================================
-get_ports           returns a list of aviable ports
-load_instruments    returns an instrument object for each instrument (c)
-reconnect           attempts to reconnect to any instruments that have been disconnected
-=================== ===========================================================
 """
-import utils
-# import serial
+from utils import loggers
+logger = loggers.lab(__name__)
 from serial.tools import list_ports
 import minimalmodbus
 minimalmodbus.BAUDRATE = 9600
 minimalmodbus.CLOSE_PORT_AFTER_EACH_CALL = True
 import visa
-import sys
-import glob
 from alicat import FlowController
-import time
 import numpy as np
 import math
 import config
-import json
-logger = utils.lab_logger(__name__)
 
 def get_ports():
     '''Returns a list of available serial ports for connecting to the furnace and motor
@@ -1089,7 +1065,6 @@ class Furnace():
                     return False
             # self.flush_output()
             # self.flush_input()
-            time.sleep(0.1)
             c=c+1
 
     def _read(self,modbus_address,message,decimals=0):
@@ -1106,7 +1081,6 @@ class Furnace():
                     return False
             # self.flush_output()
             # self.flush_input()
-            time.sleep(0.1)
             c=c+1
 
     def reset(self):

@@ -241,12 +241,9 @@ def parse_datafile(filename):
             token = list(filter(None, line.split(' ')))
 
             if token[0] == 'frequencies:':
-                line = ''.join(token[1:])
-                line = line.replace('[','')
-                line = line.replace(']','')
-                freq = line.split(' ')
-                print(freq)
-                data.freq = [float(f) for f in freq]
+                line = line.replace(']','').replace('[','').replace(',','')
+                token = list(filter(None, line.split(' ')))
+                data.freq = np.array([float(f) for f in token[1:]])
 
             #for time measurements...
             if token[0] == 'D':                 #D == Datetime
