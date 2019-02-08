@@ -7,6 +7,7 @@ sample_diameter = 12.7 #in mm
 
 #-------------------DAQ settings-------------------
 daq_address = 'USB0::0x0957::0x2007::MY49021284::INSTR'
+#daq channels
 tref = '101'
 te1 = '104'
 te2 = '105'
