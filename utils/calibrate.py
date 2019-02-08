@@ -1,10 +1,12 @@
 import loggers
 
+logger = loggers.lab(__name__)
 
-def furnace_profile(self):
+def furnace_profile():
     """Records the temperature of both electrodes (te1 and te2) as the sample is moved
     from one end of the stage to the other. Used to find the center of the stage or the xpos of a desired temperature gradient when taking thermopower measurements.
     """
+    logger.info('asodinoiasd')
     self.daq.configure()
     self.motor.set_xpos(4000)
     Utils.save_obj(self.data,'furnace_profile')
@@ -53,3 +55,6 @@ def find_center(self):
         print(self.motor.get_pos())
 
         time.sleep(600)
+
+if __name__ == '__main__':
+    furnace_profile()
