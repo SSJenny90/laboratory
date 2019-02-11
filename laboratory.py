@@ -28,7 +28,7 @@ class Setup():
     =============== ===========================================================
 
     ================= ===========================================================
-    Public Methods    Description
+    Methods    Description
     ================= ===========================================================
     device_status     checks the status of all connected devices
     get_gas           retrieves and saves data from a single mass flow controller
@@ -40,17 +40,6 @@ class Setup():
     load_frequencies  loads a set of frequencies into Data object
     load_instruments  connects to all available instruments
     run               begins a new set of laboratory measurements
-    ================= ===========================================================
-
-    ================= ===========================================================
-    Private Methods   Description
-    ================= ===========================================================
-    _break_loop       determines when the main measurement loop should break and start a
-                      new step
-    _count_down       controls the count down timer displayed between measurements
-    _measurement_loop main measurement loop of the program that retrieves and saves
-                      data
-    _progress_bar     controls the progress bar displayed during measurements
     ================= ===========================================================
 
     :Example:
