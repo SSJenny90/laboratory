@@ -250,22 +250,19 @@ class Setup():
         :returns: True if all devices are connected and False if any are disconnected
         :rtype: Boolean
         """
-        device_list = ['furnace','motor','daq','lcr','mfc']
+        device_list = {'furnace':False,'motor':False,'daq':False,'lcr':False,'mfc':False}
+        for device in device_list.keys():
+            device_list[device] = getattr(self,device).status
 
-        dev_errors = []
-        for device in device_list:
-            device_obj = getattr(self,device)
-            if not device_obj.status:
-                logger.critical('We\'ve got a problem!')
-                dev_errors.append(device)
+        dev_errors = [key for key,val in device_list.items() if val is False]
 
         if dev_errors:
             try:
                 utils.send_email(config.email,utils.Messages.device_error.format(','.join(dev_errors)))
             except Exception:
-                logger.debug('Could not send email for ')
-            return False
-        return True
+                logger.debug('Could not send email')
+
+        return device_list
 
     def reconnect(self):
         """Attempts to reconnect to any instruments that have been disconnected"""
