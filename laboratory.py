@@ -206,10 +206,11 @@ class Setup():
 
         :param step: a single row from the control file
         """
-        step_start = time.time()
+        # step_start = time.time()
+        step_start = datetime.now()
         self.n = 7+len(self.data.freq)/10
         while True:
-            loop_start = time.time()
+            start = time.time()
             self.save_data('time',datetime.now())
 
             #get some measurements
@@ -238,7 +239,7 @@ class Setup():
             self._progress_bar(7+len(self.data.freq)/10,'Complete!')
 
             #wait until the interval has expired before starting new measurements
-            self._count_down(loop_start,step.interval)
+            self._count_down(start,step.interval)
 
             if not self.device_status(): return False   #check to make sure everything is connected
             if self._break_loop(step,step_start): return True
@@ -505,27 +506,23 @@ class Setup():
         :type Tind: float
 
         :param loop_start: start time of the current measurement cycle
-        :type loop_start: float (time.time())
+        :type loop_start: datetime object
         """
-        #choose when/how to break depending on whether temperatures are increasing, decreasing or holding
-        #if increasing - break when Tind exceeds target_temp
-        deltaT = step.target_temp - step.previous_target
+        #if T is increasing, break when Tind exceeds target_temp
         if step.target_temp > step.previous_target:
             if self.indicated_temp >= step.target_temp:
-                if time.time()-loop_start >= step.hold_length*60*60:
+                # if time.time()-loop_start >= step.hold_length*60*60:
+                if (datetime.now()-loop_start).hours >= step.hold_length:
                     return True
 
         #if temperature is decreasing, Tind rarely drops below the target - hence the + 5
         elif step.target_temp < step.previous_target:
             if self.indicated_temp < step.target_temp + 5:
-                if time.time()-loop_start >= step.hold_length*60*60:
+                if (datetime.now()-loop_start).hours >= step.hold_length:
                     return True
-        else:
-            if step.hold_length == 0:
-                return True
-            else:
-                if time.time()-loop_start >= step.hold_length*60*60:
-                    return True
+        elif step.hold_length == 0: return True
+        elif (datetime.now()-loop_start).hours >= step.hold_length: return True
+
         return False
 
     def _print_df(self,df):
