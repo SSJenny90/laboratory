@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath('../'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'UofA Laboratory'
+project = 'University of Adelaide - Electrical Conductivity Laboratory'
 copyright = '2019, Sam Jennings'
 author = 'Sam Jennings'
 
