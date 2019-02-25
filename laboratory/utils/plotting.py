@@ -55,7 +55,8 @@ class LabPlots():
     def __init__(self,data):
         self.data = data
         self.t_elapsed = dt_to_hours(data.time[0],data.time)
-        self.data.thermo.mean = np.average(np.array([data.thermo.te1,data.thermo.te2]),axis=0)
+        # self.data.thermo.mean =  np.average(np.array([data.thermo.te1,data.thermo.te2]),axis=0)
+        self.data.thermo.mean = [(te1_i + te2_i)/2 for te1_i,te2_i in zip(self.data.thermo.te1,self.data.thermo.te2)]
         # self._resistivity = _calculate_conductivity()
 
     def voltage(self):

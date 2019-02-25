@@ -91,6 +91,21 @@ class Data():
             self.gas
             )
 
+    def __add__(self,other):
+        if not np.array_equal(self.freq,other.freq):
+            raise Exception('Data object must use the same frequency values')
+            return
+
+        self.thermo = self.thermo + other.thermo
+        self.gas = self.gas + other.gas
+        self.temp = self.temp + other.temp
+        self.imp = self.imp + other.imp
+        self.filename = self.filename + '_a'
+        self.time.extend(other.time)
+        # self.xpos = self.time.extend(other.time)
+        # self.step_time = self.time.extend(other.time)
+        return self
+
 class Thermo():
     """Stores thermopower data
 
@@ -109,6 +124,7 @@ class Thermo():
         self.te1 = []
         self.te2 = []
         self.volt = []
+        self.mean = []
 
     def __repr__(self):
         """String representation of the :class:`Drivers.LCR` object."""
@@ -119,6 +135,11 @@ class Thermo():
             self.te2[:5], len(self.tref),
             self.volt[:5], len(self.tref)
             )
+
+    def __add__(self,other):
+        for i in self.__dict__:
+            getattr(self,i).extend(getattr(other,i))
+        return self
 
 class Gas():
     """Stores the seperate gas data under one roof
@@ -149,6 +170,11 @@ class Gas():
             self.co_b
             )
 
+    def __add__(self,other):
+        for i in self.__dict__:
+            getattr(self,i) + getattr(other,i)
+        return self
+
 class Temp():
     """Stores furnace temperature data
 
@@ -171,6 +197,11 @@ class Temp():
             self.target[:5], len(self.target),
             self.indicated[:5], len(self.indicated)
             )
+
+    def __add__(self,other):
+        for i in self.__dict__:
+            getattr(self,i).extend(getattr(other,i))
+        return self
 
 class Impedance():
     """Stores complex impedance data
@@ -199,6 +230,11 @@ class Impedance():
             self.theta[2][:5], len(self.theta)
             )
 
+    def __add__(self,other):
+        for i in self.__dict__:
+            getattr(self,i).extend(getattr(other,i))
+        return self
+
 class MFC_data():
     """Stores gas data for an individual mass flow controller"""
     def __init__(self):
@@ -218,7 +254,20 @@ class MFC_data():
         self.setpoint[:5], len(self.setpoint)
             )
 
-def parse_datafile(filename):
+    def __add__(self,other):
+        for i in self.__dict__:
+            getattr(self,i).extend(getattr(other,i))
+        return self
+
+def load_data(filename):
+    if filename.endswith('.txt'):
+         return _load_text('laboratory/datafiles/' + filename)
+    elif filename.endswith('.pkl'):
+         return _load_pkl('laboratory/datafiles/' + filename)
+    else:
+        raise ValueError('Unsupported filetype! Must be .txt or .pkl')
+
+def _load_text(filename):
     """Parses a text file and stores the data in the Lab.Data object
 
     :param filename: name of the file to be parsed
@@ -234,8 +283,7 @@ def parse_datafile(filename):
         for line in datafile:
 
             #skip empty or commented lines
-            if line == '\n' or line.startswith('#'):
-                continue
+            if line == '\n' or line.startswith('#'): continue
 
             #split line into space delimited tokens
             token = list(filter(None, line.split(' ')))
@@ -284,6 +332,32 @@ def parse_datafile(filename):
 
     return data
 
+def _load_pkl(filename):
+    """Loads a .pkl file
+
+    :param filename: full path to file. must be a .pkl
+    :type filename: str
+    """
+    if not filename.endswith('.pkl'):
+        filename = filename + '.pkl'
+
+    # for f in filenames:
+    with open(filename, 'rb') as input:  # Overwrites any existing file.
+        return pickle.load(input)
+
 def append_data(filename,data):
 
     pass
+
+def save_obj(obj, filename):
+    """Saves an object instance as a .pkl file for later retrieval. Can be loaded again using :meth:'Utils.load_obj'
+
+    :param obj: the object instance to be saved
+    :type obj: class
+
+    :param filename: name of file
+    :type filename: str
+    """
+    filename = filename.split('.')[0]
+    with open(filename + '.pkl', 'wb') as output:  # Overwrites any existing file.
+        pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)

@@ -96,16 +96,17 @@ class Setup():
                             days=1)
 
     def load_data(self,filename):
-        """
-        loads a previous data file for processing and analysis
+        """loads a previous data file for processing and analysis
 
         :param filename: path to data file
         :type filename: str
         """
-        if filename.split('.')[1] == 'txt': self.data = data.parse_datafile(filename)
-        elif filename.split('.')[1] == 'pkl': self.data = utils.load_obj(filename)
-        else: raise ValueError('Unsupported filetype! Must be .txt or .pkl')
-        self.data.filename = filename
+        self.data = data.load_data(filename)
+        # self.data.filename = filename
+
+    def append_data(self,filename):
+        self.data = data.append_data(filename,self.data)
+
 
     def load_frequencies(self,min=config.min_freq,max=config.max_freq,n=50,log=True,filename=None):
         """Loads an np.array of frequency values specified by either min, max and n or a file containing a list of frequencies specified by filename.
@@ -222,7 +223,7 @@ class Setup():
 
             #save a pickle object as backup
             self._progress_bar(6+len(self.data.freq)/10,'Saving backup file...')
-            utils.save_obj(self.data,self.data.filename)
+            data.save_obj(self.data,self.data.filename)
             self._progress_bar(7+len(self.data.freq)/10,'Complete!')
 
             #wait until the interval has expired before starting new measurements

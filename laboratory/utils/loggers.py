@@ -14,7 +14,7 @@ def lab(name):
     if logger.hasHandlers(): logger.handlers.clear()
 
     #create a folder for the log files if none exists
-    folder = 'logfiles'
+    folder = '../logfiles'
     if not os.path.exists(folder): os.mkdir(folder)
     filepath = os.path.join(folder, '{}_{}.log'.format(config.name,time.strftime('%d-%m-%Y_%H%M')))
 
@@ -48,7 +48,7 @@ def data():
     dlogger.setLevel('DEBUG')
     if dlogger.hasHandlers(): dlogger.handlers.clear()
 
-    folder = 'datafiles'
+    folder = 'laboratory/datafiles'
     if not os.path.exists(folder): os.mkdir(folder)
     filename = os.path.join(folder,'{}_{}.txt'.format(config.name,time.strftime('%d-%B-%y-%H%M')))
 

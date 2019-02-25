@@ -1,0 +1,133 @@
+\indexentry{laboratory.config (module)@\spxentry{laboratory.config}\spxextra{module}|hyperpage}{1}
+\indexentry{laboratory.setup (module)@\spxentry{laboratory.setup}\spxextra{module}|hyperpage}{1}
+\indexentry{Setup (class in laboratory.setup)@\spxentry{Setup}\spxextra{class in laboratory.setup}|hyperpage}{1}
+\indexentry{append\_data() (laboratory.setup.Setup method)@\spxentry{append\_data()}\spxextra{laboratory.setup.Setup method}|hyperpage}{1}
+\indexentry{debug (laboratory.setup.Setup attribute)@\spxentry{debug}\spxextra{laboratory.setup.Setup attribute}|hyperpage}{1}
+\indexentry{delayed\_start (laboratory.setup.Setup attribute)@\spxentry{delayed\_start}\spxextra{laboratory.setup.Setup attribute}|hyperpage}{2}
+\indexentry{device\_status() (laboratory.setup.Setup method)@\spxentry{device\_status()}\spxextra{laboratory.setup.Setup method}|hyperpage}{2}
+\indexentry{get\_gas() (laboratory.setup.Setup method)@\spxentry{get\_gas()}\spxextra{laboratory.setup.Setup method}|hyperpage}{2}
+\indexentry{get\_impedance() (laboratory.setup.Setup method)@\spxentry{get\_impedance()}\spxextra{laboratory.setup.Setup method}|hyperpage}{2}
+\indexentry{get\_temp() (laboratory.setup.Setup method)@\spxentry{get\_temp()}\spxextra{laboratory.setup.Setup method}|hyperpage}{2}
+\indexentry{get\_thermopower() (laboratory.setup.Setup method)@\spxentry{get\_thermopower()}\spxextra{laboratory.setup.Setup method}|hyperpage}{2}
+\indexentry{load\_data() (laboratory.setup.Setup method)@\spxentry{load\_data()}\spxextra{laboratory.setup.Setup method}|hyperpage}{2}
+\indexentry{load\_frequencies() (laboratory.setup.Setup method)@\spxentry{load\_frequencies()}\spxextra{laboratory.setup.Setup method}|hyperpage}{2}
+\indexentry{load\_instruments() (laboratory.setup.Setup method)@\spxentry{load\_instruments()}\spxextra{laboratory.setup.Setup method}|hyperpage}{3}
+\indexentry{preflight\_checklist() (laboratory.setup.Setup method)@\spxentry{preflight\_checklist()}\spxextra{laboratory.setup.Setup method}|hyperpage}{3}
+\indexentry{reconnect() (laboratory.setup.Setup method)@\spxentry{reconnect()}\spxextra{laboratory.setup.Setup method}|hyperpage}{3}
+\indexentry{restart\_from\_backup() (laboratory.setup.Setup method)@\spxentry{restart\_from\_backup()}\spxextra{laboratory.setup.Setup method}|hyperpage}{3}
+\indexentry{run() (laboratory.setup.Setup method)@\spxentry{run()}\spxextra{laboratory.setup.Setup method}|hyperpage}{3}
+\indexentry{save\_data() (laboratory.setup.Setup method)@\spxentry{save\_data()}\spxextra{laboratory.setup.Setup method}|hyperpage}{3}
+\indexentry{set\_fugacity() (laboratory.setup.Setup method)@\spxentry{set\_fugacity()}\spxextra{laboratory.setup.Setup method}|hyperpage}{3}
+\indexentry{shut\_down() (laboratory.setup.Setup method)@\spxentry{shut\_down()}\spxextra{laboratory.setup.Setup method}|hyperpage}{4}
+\indexentry{laboratory (module)@\spxentry{laboratory}\spxextra{module}|hyperpage}{4}
+\indexentry{laboratory.utils.calibrate (module)@\spxentry{laboratory.utils.calibrate}\spxextra{module}|hyperpage}{5}
+\indexentry{find\_center() (in module laboratory.utils.calibrate)@\spxentry{find\_center()}\spxextra{in module laboratory.utils.calibrate}|hyperpage}{5}
+\indexentry{furnace\_profile() (in module laboratory.utils.calibrate)@\spxentry{furnace\_profile()}\spxextra{in module laboratory.utils.calibrate}|hyperpage}{5}
+\indexentry{laboratory.utils.data (module)@\spxentry{laboratory.utils.data}\spxextra{module}|hyperpage}{5}
+\indexentry{Data (class in laboratory.utils.data)@\spxentry{Data}\spxextra{class in laboratory.utils.data}|hyperpage}{5}
+\indexentry{filename (laboratory.utils.data.Data attribute)@\spxentry{filename}\spxextra{laboratory.utils.data.Data attribute}|hyperpage}{5}
+\indexentry{freq (laboratory.utils.data.Data attribute)@\spxentry{freq}\spxextra{laboratory.utils.data.Data attribute}|hyperpage}{5}
+\indexentry{Gas (class in laboratory.utils.data)@\spxentry{Gas}\spxextra{class in laboratory.utils.data}|hyperpage}{5}
+\indexentry{Impedance (class in laboratory.utils.data)@\spxentry{Impedance}\spxextra{class in laboratory.utils.data}|hyperpage}{6}
+\indexentry{MFC\_data (class in laboratory.utils.data)@\spxentry{MFC\_data}\spxextra{class in laboratory.utils.data}|hyperpage}{6}
+\indexentry{Temp (class in laboratory.utils.data)@\spxentry{Temp}\spxextra{class in laboratory.utils.data}|hyperpage}{6}
+\indexentry{Thermo (class in laboratory.utils.data)@\spxentry{Thermo}\spxextra{class in laboratory.utils.data}|hyperpage}{6}
+\indexentry{append\_data() (in module laboratory.utils.data)@\spxentry{append\_data()}\spxextra{in module laboratory.utils.data}|hyperpage}{6}
+\indexentry{load\_data() (in module laboratory.utils.data)@\spxentry{load\_data()}\spxextra{in module laboratory.utils.data}|hyperpage}{6}
+\indexentry{save\_obj() (in module laboratory.utils.data)@\spxentry{save\_obj()}\spxextra{in module laboratory.utils.data}|hyperpage}{6}
+\indexentry{laboratory.utils.loggers (module)@\spxentry{laboratory.utils.loggers}\spxextra{module}|hyperpage}{7}
+\indexentry{data() (in module laboratory.utils.loggers)@\spxentry{data()}\spxextra{in module laboratory.utils.loggers}|hyperpage}{7}
+\indexentry{lab() (in module laboratory.utils.loggers)@\spxentry{lab()}\spxextra{in module laboratory.utils.loggers}|hyperpage}{7}
+\indexentry{laboratory.utils.notifications (module)@\spxentry{laboratory.utils.notifications}\spxextra{module}|hyperpage}{7}
+\indexentry{Messages (class in laboratory.utils.notifications)@\spxentry{Messages}\spxextra{class in laboratory.utils.notifications}|hyperpage}{7}
+\indexentry{delayed\_start (laboratory.utils.notifications.Messages attribute)@\spxentry{delayed\_start}\spxextra{laboratory.utils.notifications.Messages attribute}|hyperpage}{7}
+\indexentry{device\_error (laboratory.utils.notifications.Messages attribute)@\spxentry{device\_error}\spxextra{laboratory.utils.notifications.Messages attribute}|hyperpage}{7}
+\indexentry{step\_complete (laboratory.utils.notifications.Messages attribute)@\spxentry{step\_complete}\spxextra{laboratory.utils.notifications.Messages attribute}|hyperpage}{7}
+\indexentry{send\_email() (in module laboratory.utils.notifications)@\spxentry{send\_email()}\spxextra{in module laboratory.utils.notifications}|hyperpage}{7}
+\indexentry{laboratory.utils.plotting (module)@\spxentry{laboratory.utils.plotting}\spxextra{module}|hyperpage}{7}
+\indexentry{LabPlots (class in laboratory.utils.plotting)@\spxentry{LabPlots}\spxextra{class in laboratory.utils.plotting}|hyperpage}{7}
+\indexentry{arrhenius() (laboratory.utils.plotting.LabPlots method)@\spxentry{arrhenius()}\spxextra{laboratory.utils.plotting.LabPlots method}|hyperpage}{8}
+\indexentry{cole() (laboratory.utils.plotting.LabPlots method)@\spxentry{cole()}\spxextra{laboratory.utils.plotting.LabPlots method}|hyperpage}{8}
+\indexentry{cond\_fugacity() (laboratory.utils.plotting.LabPlots method)@\spxentry{cond\_fugacity()}\spxextra{laboratory.utils.plotting.LabPlots method}|hyperpage}{8}
+\indexentry{cond\_time() (laboratory.utils.plotting.LabPlots method)@\spxentry{cond\_time()}\spxextra{laboratory.utils.plotting.LabPlots method}|hyperpage}{8}
+\indexentry{gas() (laboratory.utils.plotting.LabPlots method)@\spxentry{gas()}\spxextra{laboratory.utils.plotting.LabPlots method}|hyperpage}{8}
+\indexentry{imp\_diameter() (laboratory.utils.plotting.LabPlots method)@\spxentry{imp\_diameter()}\spxextra{laboratory.utils.plotting.LabPlots method}|hyperpage}{8}
+\indexentry{temperature() (laboratory.utils.plotting.LabPlots method)@\spxentry{temperature()}\spxextra{laboratory.utils.plotting.LabPlots method}|hyperpage}{8}
+\indexentry{voltage() (laboratory.utils.plotting.LabPlots method)@\spxentry{voltage()}\spxextra{laboratory.utils.plotting.LabPlots method}|hyperpage}{8}
+\indexentry{calculate\_resistivity() (in module laboratory.utils.plotting)@\spxentry{calculate\_resistivity()}\spxextra{in module laboratory.utils.plotting}|hyperpage}{8}
+\indexentry{dt\_to\_hours() (in module laboratory.utils.plotting)@\spxentry{dt\_to\_hours()}\spxextra{in module laboratory.utils.plotting}|hyperpage}{8}
+\indexentry{get\_Re\_Im() (in module laboratory.utils.plotting)@\spxentry{get\_Re\_Im()}\spxextra{in module laboratory.utils.plotting}|hyperpage}{8}
+\indexentry{impedance\_fit() (in module laboratory.utils.plotting)@\spxentry{impedance\_fit()}\spxextra{in module laboratory.utils.plotting}|hyperpage}{8}
+\indexentry{index\_temp() (in module laboratory.utils.plotting)@\spxentry{index\_temp()}\spxextra{in module laboratory.utils.plotting}|hyperpage}{8}
+\indexentry{leastsq\_circle() (in module laboratory.utils.plotting)@\spxentry{leastsq\_circle()}\spxextra{in module laboratory.utils.plotting}|hyperpage}{8}
+\indexentry{laboratory.utils (module)@\spxentry{laboratory.utils}\spxextra{module}|hyperpage}{8}
+\indexentry{laboratory.drivers.daq (module)@\spxentry{laboratory.drivers.daq}\spxextra{module}|hyperpage}{9}
+\indexentry{DAQ (class in laboratory.drivers.daq)@\spxentry{DAQ}\spxextra{class in laboratory.drivers.daq}|hyperpage}{9}
+\indexentry{configure() (laboratory.drivers.daq.DAQ method)@\spxentry{configure()}\spxextra{laboratory.drivers.daq.DAQ method}|hyperpage}{9}
+\indexentry{connect() (laboratory.drivers.daq.DAQ method)@\spxentry{connect()}\spxextra{laboratory.drivers.daq.DAQ method}|hyperpage}{9}
+\indexentry{get\_temp() (laboratory.drivers.daq.DAQ method)@\spxentry{get\_temp()}\spxextra{laboratory.drivers.daq.DAQ method}|hyperpage}{9}
+\indexentry{get\_thermopower() (laboratory.drivers.daq.DAQ method)@\spxentry{get\_thermopower()}\spxextra{laboratory.drivers.daq.DAQ method}|hyperpage}{10}
+\indexentry{get\_voltage() (laboratory.drivers.daq.DAQ method)@\spxentry{get\_voltage()}\spxextra{laboratory.drivers.daq.DAQ method}|hyperpage}{10}
+\indexentry{read\_errors() (laboratory.drivers.daq.DAQ method)@\spxentry{read\_errors()}\spxextra{laboratory.drivers.daq.DAQ method}|hyperpage}{10}
+\indexentry{reset() (laboratory.drivers.daq.DAQ method)@\spxentry{reset()}\spxextra{laboratory.drivers.daq.DAQ method}|hyperpage}{10}
+\indexentry{shutdown() (laboratory.drivers.daq.DAQ method)@\spxentry{shutdown()}\spxextra{laboratory.drivers.daq.DAQ method}|hyperpage}{10}
+\indexentry{toggle\_switch() (laboratory.drivers.daq.DAQ method)@\spxentry{toggle\_switch()}\spxextra{laboratory.drivers.daq.DAQ method}|hyperpage}{10}
+\indexentry{laboratory.drivers.furnace (module)@\spxentry{laboratory.drivers.furnace}\spxextra{module}|hyperpage}{10}
+\indexentry{Furnace (class in laboratory.drivers.furnace)@\spxentry{Furnace}\spxextra{class in laboratory.drivers.furnace}|hyperpage}{10}
+\indexentry{configure() (laboratory.drivers.furnace.Furnace method)@\spxentry{configure()}\spxextra{laboratory.drivers.furnace.Furnace method}|hyperpage}{10}
+\indexentry{flush\_input() (laboratory.drivers.furnace.Furnace method)@\spxentry{flush\_input()}\spxextra{laboratory.drivers.furnace.Furnace method}|hyperpage}{11}
+\indexentry{flush\_output() (laboratory.drivers.furnace.Furnace method)@\spxentry{flush\_output()}\spxextra{laboratory.drivers.furnace.Furnace method}|hyperpage}{11}
+\indexentry{heating\_rate() (laboratory.drivers.furnace.Furnace method)@\spxentry{heating\_rate()}\spxextra{laboratory.drivers.furnace.Furnace method}|hyperpage}{11}
+\indexentry{indicated() (laboratory.drivers.furnace.Furnace method)@\spxentry{indicated()}\spxextra{laboratory.drivers.furnace.Furnace method}|hyperpage}{11}
+\indexentry{other() (laboratory.drivers.furnace.Furnace method)@\spxentry{other()}\spxextra{laboratory.drivers.furnace.Furnace method}|hyperpage}{11}
+\indexentry{reset() (laboratory.drivers.furnace.Furnace method)@\spxentry{reset()}\spxextra{laboratory.drivers.furnace.Furnace method}|hyperpage}{11}
+\indexentry{setpoint\_1() (laboratory.drivers.furnace.Furnace method)@\spxentry{setpoint\_1()}\spxextra{laboratory.drivers.furnace.Furnace method}|hyperpage}{11}
+\indexentry{setpoint\_2() (laboratory.drivers.furnace.Furnace method)@\spxentry{setpoint\_2()}\spxextra{laboratory.drivers.furnace.Furnace method}|hyperpage}{11}
+\indexentry{settings() (laboratory.drivers.furnace.Furnace method)@\spxentry{settings()}\spxextra{laboratory.drivers.furnace.Furnace method}|hyperpage}{11}
+\indexentry{timer\_end\_type() (laboratory.drivers.furnace.Furnace method)@\spxentry{timer\_end\_type()}\spxextra{laboratory.drivers.furnace.Furnace method}|hyperpage}{11}
+\indexentry{timer\_resolution() (laboratory.drivers.furnace.Furnace method)@\spxentry{timer\_resolution()}\spxextra{laboratory.drivers.furnace.Furnace method}|hyperpage}{11}
+\indexentry{timer\_status() (laboratory.drivers.furnace.Furnace method)@\spxentry{timer\_status()}\spxextra{laboratory.drivers.furnace.Furnace method}|hyperpage}{11}
+\indexentry{timer\_type() (laboratory.drivers.furnace.Furnace method)@\spxentry{timer\_type()}\spxextra{laboratory.drivers.furnace.Furnace method}|hyperpage}{11}
+\indexentry{laboratory.drivers.lcr (module)@\spxentry{laboratory.drivers.lcr}\spxextra{module}|hyperpage}{12}
+\indexentry{LCR (class in laboratory.drivers.lcr)@\spxentry{LCR}\spxextra{class in laboratory.drivers.lcr}|hyperpage}{12}
+\indexentry{configure() (laboratory.drivers.lcr.LCR method)@\spxentry{configure()}\spxextra{laboratory.drivers.lcr.LCR method}|hyperpage}{12}
+\indexentry{display() (laboratory.drivers.lcr.LCR method)@\spxentry{display()}\spxextra{laboratory.drivers.lcr.LCR method}|hyperpage}{12}
+\indexentry{function() (laboratory.drivers.lcr.LCR method)@\spxentry{function()}\spxextra{laboratory.drivers.lcr.LCR method}|hyperpage}{12}
+\indexentry{get\_complexZ() (laboratory.drivers.lcr.LCR method)@\spxentry{get\_complexZ()}\spxextra{laboratory.drivers.lcr.LCR method}|hyperpage}{12}
+\indexentry{list\_mode() (laboratory.drivers.lcr.LCR method)@\spxentry{list\_mode()}\spxextra{laboratory.drivers.lcr.LCR method}|hyperpage}{12}
+\indexentry{reset() (laboratory.drivers.lcr.LCR method)@\spxentry{reset()}\spxextra{laboratory.drivers.lcr.LCR method}|hyperpage}{12}
+\indexentry{shutdown() (laboratory.drivers.lcr.LCR method)@\spxentry{shutdown()}\spxextra{laboratory.drivers.lcr.LCR method}|hyperpage}{12}
+\indexentry{trigger() (laboratory.drivers.lcr.LCR method)@\spxentry{trigger()}\spxextra{laboratory.drivers.lcr.LCR method}|hyperpage}{12}
+\indexentry{write\_freq() (laboratory.drivers.lcr.LCR method)@\spxentry{write\_freq()}\spxextra{laboratory.drivers.lcr.LCR method}|hyperpage}{12}
+\indexentry{laboratory.drivers.mfc (module)@\spxentry{laboratory.drivers.mfc}\spxextra{module}|hyperpage}{12}
+\indexentry{AlicatController (class in laboratory.drivers.mfc)@\spxentry{AlicatController}\spxextra{class in laboratory.drivers.mfc}|hyperpage}{12}
+\indexentry{get\_all() (laboratory.drivers.mfc.AlicatController method)@\spxentry{get\_all()}\spxextra{laboratory.drivers.mfc.AlicatController method}|hyperpage}{13}
+\indexentry{massflow() (laboratory.drivers.mfc.AlicatController method)@\spxentry{massflow()}\spxextra{laboratory.drivers.mfc.AlicatController method}|hyperpage}{13}
+\indexentry{pressure() (laboratory.drivers.mfc.AlicatController method)@\spxentry{pressure()}\spxextra{laboratory.drivers.mfc.AlicatController method}|hyperpage}{13}
+\indexentry{reset() (laboratory.drivers.mfc.AlicatController method)@\spxentry{reset()}\spxextra{laboratory.drivers.mfc.AlicatController method}|hyperpage}{13}
+\indexentry{setpoint() (laboratory.drivers.mfc.AlicatController method)@\spxentry{setpoint()}\spxextra{laboratory.drivers.mfc.AlicatController method}|hyperpage}{13}
+\indexentry{temperature() (laboratory.drivers.mfc.AlicatController method)@\spxentry{temperature()}\spxextra{laboratory.drivers.mfc.AlicatController method}|hyperpage}{13}
+\indexentry{volume\_flow() (laboratory.drivers.mfc.AlicatController method)@\spxentry{volume\_flow()}\spxextra{laboratory.drivers.mfc.AlicatController method}|hyperpage}{13}
+\indexentry{MFC (class in laboratory.drivers.mfc)@\spxentry{MFC}\spxextra{class in laboratory.drivers.mfc}|hyperpage}{13}
+\indexentry{close\_all() (laboratory.drivers.mfc.MFC method)@\spxentry{close\_all()}\spxextra{laboratory.drivers.mfc.MFC method}|hyperpage}{14}
+\indexentry{flush\_all() (laboratory.drivers.mfc.MFC method)@\spxentry{flush\_all()}\spxextra{laboratory.drivers.mfc.MFC method}|hyperpage}{14}
+\indexentry{fo2\_buffer() (laboratory.drivers.mfc.MFC method)@\spxentry{fo2\_buffer()}\spxextra{laboratory.drivers.mfc.MFC method}|hyperpage}{14}
+\indexentry{fugacity\_co() (laboratory.drivers.mfc.MFC method)@\spxentry{fugacity\_co()}\spxextra{laboratory.drivers.mfc.MFC method}|hyperpage}{14}
+\indexentry{fugacity\_h2() (laboratory.drivers.mfc.MFC method)@\spxentry{fugacity\_h2()}\spxextra{laboratory.drivers.mfc.MFC method}|hyperpage}{14}
+\indexentry{reset() (laboratory.drivers.mfc.MFC method)@\spxentry{reset()}\spxextra{laboratory.drivers.mfc.MFC method}|hyperpage}{15}
+\indexentry{laboratory.drivers.motor (module)@\spxentry{laboratory.drivers.motor}\spxextra{module}|hyperpage}{15}
+\indexentry{Motor (class in laboratory.drivers.motor)@\spxentry{Motor}\spxextra{class in laboratory.drivers.motor}|hyperpage}{15}
+\indexentry{center() (laboratory.drivers.motor.Motor method)@\spxentry{center()}\spxextra{laboratory.drivers.motor.Motor method}|hyperpage}{15}
+\indexentry{get\_speed() (laboratory.drivers.motor.Motor method)@\spxentry{get\_speed()}\spxextra{laboratory.drivers.motor.Motor method}|hyperpage}{15}
+\indexentry{get\_xpos() (laboratory.drivers.motor.Motor method)@\spxentry{get\_xpos()}\spxextra{laboratory.drivers.motor.Motor method}|hyperpage}{15}
+\indexentry{home() (laboratory.drivers.motor.Motor method)@\spxentry{home()}\spxextra{laboratory.drivers.motor.Motor method}|hyperpage}{15}
+\indexentry{move() (laboratory.drivers.motor.Motor method)@\spxentry{move()}\spxextra{laboratory.drivers.motor.Motor method}|hyperpage}{16}
+\indexentry{reset() (laboratory.drivers.motor.Motor method)@\spxentry{reset()}\spxextra{laboratory.drivers.motor.Motor method}|hyperpage}{16}
+\indexentry{set\_speed() (laboratory.drivers.motor.Motor method)@\spxentry{set\_speed()}\spxextra{laboratory.drivers.motor.Motor method}|hyperpage}{16}
+\indexentry{set\_xpos() (laboratory.drivers.motor.Motor method)@\spxentry{set\_xpos()}\spxextra{laboratory.drivers.motor.Motor method}|hyperpage}{16}
+\indexentry{test() (laboratory.drivers.motor.Motor method)@\spxentry{test()}\spxextra{laboratory.drivers.motor.Motor method}|hyperpage}{16}
+\indexentry{laboratory.drivers.other (module)@\spxentry{laboratory.drivers.other}\spxextra{module}|hyperpage}{16}
+\indexentry{get\_ports() (in module laboratory.drivers.other)@\spxentry{get\_ports()}\spxextra{in module laboratory.drivers.other}|hyperpage}{16}
+\indexentry{load\_instruments() (in module laboratory.drivers.other)@\spxentry{load\_instruments()}\spxextra{in module laboratory.drivers.other}|hyperpage}{16}
+\indexentry{reconnect() (in module laboratory.drivers.other)@\spxentry{reconnect()}\spxextra{in module laboratory.drivers.other}|hyperpage}{16}
+\indexentry{laboratory.drivers (module)@\spxentry{laboratory.drivers}\spxextra{module}|hyperpage}{16}
