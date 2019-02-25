@@ -263,7 +263,7 @@ class Setup():
         :rtype: instrument objects
         """
         logger.info('Establishing connection with instruments...')
-        self.lcr,self.daq,self.mfc,self.furnace,self.motor = drivers.load_instruments()
+        self.lcr,self.daq,self.mfc,self.furnace,self.motor = load_instruments()
         print(' ')
 
     def set_fugacity(self,buffer,offset,gas_type):
