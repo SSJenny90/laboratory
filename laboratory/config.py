@@ -1,5 +1,5 @@
 """
-This is a configuration file for setting up the users laboratory. It contains settings for experiment name, sample dimensions, instrument addresses and physical constants. Experiment name and sample dimensions should be modified with each new experiment. Everything else can remain as is unless the physical setup of the lab has changed.
+This is a configuration file for setting up the laboratory. It contains settings to set the name of the the experiment, sample dimensions, instrument addresses and physical constants. Experiment name and sample dimensions should be modified with each new experiment. Everything else can remain as is unless the physical setup of the lab has changed.
 """
 
 email = 'samuel.jennings@adelaide.edu.au'
