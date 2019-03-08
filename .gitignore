@@ -5,6 +5,10 @@ datafiles/
 test.py
 docs/logfiles/
 docs/build/
+__pycache__/
+
+
+
 
 # Compiled source #
 ###################
