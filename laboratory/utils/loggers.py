@@ -16,14 +16,14 @@ def lab(name):
     #create a folder for the log files if none exists
     folder = '../logfiles'
     if not os.path.exists(folder): os.mkdir(folder)
-    filepath = os.path.join(folder, '{}_{}.log'.format(config.name,time.strftime('%d-%m-%Y_%H%M')))
+    filepath = os.path.join(folder, '{}_{}.log'.format(config.PROJECT_NAME,time.strftime('%d-%m-%Y_%H%M')))
 
     def sorted_ls(path):
         """Removes all but the 10 most recent logfiles -- prevent clutter during testing"""
         mtime = lambda f: os.stat(os.path.join(path, f)).st_mtime
         files = list(sorted(os.listdir(path), key=mtime))
         for f in files[1:-10]: os.remove(os.path.join(folder,f))
-    sorted_ls(folder)
+    # sorted_ls(folder)
 
     #setup file handler
     fh = logging.FileHandler(filepath)
@@ -50,7 +50,7 @@ def data():
 
     folder = 'laboratory/datafiles'
     if not os.path.exists(folder): os.mkdir(folder)
-    filename = os.path.join(folder,'{}_{}.txt'.format(config.name,time.strftime('%d-%B-%y-%H%M')))
+    filename = os.path.join(folder,'{}_{}.txt'.format(config.PROJECT_NAME,time.strftime('%d-%B-%y-%H%M')))
 
     #set up file handler
     fh = logging.FileHandler(filename)

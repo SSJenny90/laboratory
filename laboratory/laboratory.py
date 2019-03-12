@@ -1,5 +1,5 @@
-from . import config
-from laboratory.utils import loggers, notifications, plotting, data
+from laboratory import config
+from laboratory.utils import loggers, notifications, plotting, data, utils
 from laboratory.drivers import load_instruments
 import os
 import time
@@ -54,9 +54,10 @@ class Setup():
         self.dlogger=None
         self._delayed_start = None
         if filename is None:
-            self.load_instruments()
             self.data = data.Data()
             self.load_frequencies()
+            self.load_instruments()
+
         else:
             self.load_data(filename)
             self.plot = plotting.LabPlots(self.data)
@@ -107,8 +108,7 @@ class Setup():
     def append_data(self,filename):
         self.data = data.append_data(filename,self.data)
 
-
-    def load_frequencies(self,min=config.min_freq,max=config.max_freq,n=50,log=True,filename=None):
+    def load_frequencies(self,min=config.MINIMUM_FREQ,max=config.MAXIMUM_FREQ,n=50,log=True,filename=None):
         """Loads an np.array of frequency values specified by either min, max and n or a file containing a list of frequencies specified by filename.
 
         :param filename: name of file containing frequencies
@@ -153,7 +153,7 @@ class Setup():
         if self.delayed_start:
             logger.info('Experiment will start at {}'.format(datetime.strftime(self.delayed_start,'%H:%M on %b %d ')))
             time.sleep((self.delayed_start-datetime.now()).total_seconds())
-            utils.send_email(config.email,utils.Messages.delayed_start.format(self.delayed_start,'%H:%M'))
+            utils.send_email(config.EMAIL,utils.Messages.delayed_start.format(self.delayed_start,'%H:%M'))
             logger.info('Resuming...')
 
         # iterate through control file until finished
@@ -181,7 +181,7 @@ class Setup():
                 print('')
                 if i < self.controlfile.shape[0]-1:
                     est_completion = datetime.strftime(datetime.now() + timedelta(minutes=step.est_total_mins),'%H:%M %A, %b %d')
-                    utils.send_email(config.email,utils.Messages.step_complete.format(i+1,self.controlfile.loc[i+1,'target_temp'],i+2,i+2,est_completion))
+                    utils.send_email(config.EMAIL,utils.Messages.step_complete.format(i+1,self.controlfile.loc[i+1,'target_temp'],i+2,i+2,est_completion))
             else:
                 logger.critical('Something wen\'t wrong!')
                 break
@@ -227,10 +227,12 @@ class Setup():
             self._progress_bar(7+len(self.data.freq)/10,'Complete!')
 
             #wait until the interval has expired before starting new measurements
-            self._count_down(start,step.interval)
+            utils.count_down(start,step.interval)
 
-            if not self.device_status(): return False   #check to make sure everything is connected
-            if self._break_loop(step,step_start): return True
+            if not self.device_status():
+                return False   #check to make sure everything is connected
+            if utils.break_loop(step.target, step.previous, self.indicated, step_start):
+                return True
 
     def device_status(self):
         """
@@ -247,7 +249,7 @@ class Setup():
 
         if dev_errors:
             try:
-                utils.send_email(config.email,utils.Messages.device_error.format(','.join(dev_errors)))
+                utils.send_email(config.EMAIL,utils.Messages.device_error.format(','.join(dev_errors)))
             except Exception:
                 logger.debug('Could not send email')
 
@@ -264,7 +266,7 @@ class Setup():
         :rtype: instrument objects
         """
         logger.info('Establishing connection with instruments...')
-        self.lcr,self.daq,self.mfc,self.furnace,self.motor = load_instruments()
+        self.lcr, self.daq, self.mfc, self.furnace, self.motor = load_instruments()
         print(' ')
 
     def set_fugacity(self,buffer,offset,gas_type):
@@ -445,24 +447,6 @@ class Setup():
         #load the pickle file
         return
 
-    def _count_down(self,start,interval,time_remaining=1):
-        """Controls the count down until next measurement cycle
-
-        :param interval: time in seconds remaining until next measurement
-        :type interval: float/int
-        """
-        print('')
-        while time_remaining > 0:
-            time_remaining = int(interval*60+start-time.time())
-            mins = int(time_remaining/60)
-            seconds = time_remaining%60
-            time.sleep(1)
-            sys.stdout.write('\rNext measurement in... {:02}m {:02}s'.format(mins,seconds))
-            sys.stdout.flush()
-            if time_remaining < 1:
-                sys.stdout.write('\r                                          \r'),
-                sys.stdout.flush()
-
     def _progress_bar(self,iteration, message,decimals=0, bar_length=25):
         """Creates a terminal progress bar
 
@@ -483,48 +467,6 @@ class Setup():
 
         if iteration == self.n: sys.stdout.write('')
         sys.stdout.flush()
-
-    def _break_loop(self,step,loop_start):
-        """Checks whether the main measurements loop should be broken in order to proceed to the next step. If temperature is increasing the loop will break once T-indicated exceeds the target temperature. If temperature is decreasing, the loop will break when T-indicated is within 5 degrees of the target. If temperature is holding, the loop will break when the hold time specified by step.hold_length is exceeded.
-
-        :param step: current measurement step
-        :type param: pd.dataframe
-
-        :param Tind: current indicated temperature on furnace
-        :type Tind: float
-
-        :param loop_start: start time of the current measurement cycle
-        :type loop_start: datetime object
-        """
-        #if T is increasing, break when Tind exceeds target_temp
-        if step.target_temp > step.previous_target:
-            if self.indicated_temp >= step.target_temp:
-                # if time.time()-loop_start >= step.hold_length*60*60:
-                if (datetime.now()-loop_start).hours >= step.hold_length:
-                    return True
-
-        #if temperature is decreasing, Tind rarely drops below the target - hence the + 5
-        elif step.target_temp < step.previous_target:
-            if self.indicated_temp < step.target_temp + 5:
-                if (datetime.now()-loop_start).hours >= step.hold_length:
-                    return True
-        elif step.hold_length == 0: return True
-        elif (datetime.now()-loop_start).hours >= step.hold_length: return True
-
-        return False
-
-    def _print_df(self,df):
-        # for ind,line in enumerate(step[:-2]):
-        #     if len(step.index[ind]) > 7:
-        #         logger.info('\t{}\t{}'.format(step.index[ind],line))
-        #     else:
-        #         logger.info('\t{}\t\t{}'.format(step.index[ind],line))
-        # print('')
-        column_names = ['target_temp', 'hold_length', 'heat_rate', 'interval', 'buffer', 'offset', 'fo2_gas', 'est_total_mins']
-        column_alias = ['Target [C]', 'Hold length [hrs]', 'Heating rate [C/min]', 'Interval', 'Buffer', 'Offset', 'Gas', 'Estimated minutes']
-
-        print(df.to_string(columns=column_names,header=column_alias,index=False,line_width=10))
-        print(' ')
 
     def preflight_checklist(self,controlfile):
         """Conducts necessary checks before running an experiment abs

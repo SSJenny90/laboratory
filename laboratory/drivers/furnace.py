@@ -36,9 +36,9 @@ class Furnace():
 
     def __init__(self,ports=None):
 
-        self.address = config.furnace_address
+        self.address = config.FURNACE_ADDRESS
         self.maxtry = 10
-        self.default_temp = config.default_temp
+        self.default_temp = config.RESET_TEMPERATURE
         self.status = False
 
         self._connect(ports)
@@ -78,6 +78,7 @@ class Furnace():
                     tmp = self.Ins.read_register(107) #try connect to furnace
                     if tmp == 531:
                         logger.info('    FUR - CONNECTED!')
+                        self.configure()
                         self.status = True
                         break
                 except Exception as e:
@@ -89,98 +90,239 @@ class Furnace():
             logger.error('    FUR - FAILED (check log for details)')
 
     def configure(self):
-        self.setpoint_2(config.default_temp)
-        self.timer_status('dwell')
-        self.timer_end_type('alternate')
+        """
+        Configures the furnace based on settings specified in the configuration file
+        """
+        logger.debug('Configuring furnace...')
+        self.setpoint_2()
+        self.setpoint_select('setpoint_1')
+        self.display()
+        self.timer_type('dwell')
+        self.timer_end_type('transfer')
+        self.timer_resolution('M:S')
+        self.timer_status('reset')
 
-    def indicated(self,address=1):
-        '''Query current temperature of furnace.
-        Modbus address - 1
+    def display(self,display_type=0,address=106):
+        """
+        Select the display mode for the furnace.
 
-        :returns: Temperature in °C if succesful, else False
-        :rtype: float/boolean
-        '''
-        return self._read(address,'Getting temperature')
+        options:
+            0 : Standard PV and SP
+            1 : PV and output power
+            2 : PV and time remaining
+            3 : PV and timer elapsed
+            4 : PV and alarm 1 setpoint
+            5 : PV and load current
+            6 : PV only
+            7 : PV and composite SP/time remaining
+
+        :param display_type: any display type options as above
+        :type display_type: int
+
+        :returns: True if succesful, False if not
+        """
+        display_options = [0,1,2,3,4,5,6,7]
+        if display_type in display_options:
+            return self._write(address,display_type,'Setting display type')
+        else:
+            logger.info('Incorrect argument for variable "display_type". Must be one of {}'.format(display_options))
 
     def heating_rate(self,heat_rate=None,address=35):
-        """Sets the desired heating rate of furnace.
-        Modbus address - 35
+        """If heat_rate is specified, this method sets the heating rate of the furnace.
+        If no argument is passed it queries the current heating rate
 
         :param heat_rate: heating rate in °C/min
         :type heat_rate: float, int
 
-        :returns: True if succesful, False if not
-        :rtype: Boolean
+        :Example:
+
+        >>> lab.furnace.heating_rate()
+        10.0
+        >>> lab.furnace.heating_rate(5)
+        True
+        >>> lab.furnace.heating_rate()
+        5.0
         """
-        if heat_rate: return self._write(address,heat_rate,'Setting heating rate',decimals=1)
-        else: return self._read(address,'Getting heating rate',decimals=1)
+        return self._command(heat_rate,address,'heating rate')
+        # if heat_rate: return self._write(address,heat_rate,'Setting heating rate',decimals=1)
+        # else: return self._read(address,'Getting heating rate',decimals=1)
+
+    def indicated(self,address=1):
+        """[Query only] Queries the current temperature of furnace.
+
+        :returns: Temperature in °C if succesful, else False
+        """
+        return self._read(address,'Getting temperature')
+
+    def reset_timer(self):
+        """Resets the current timer and immediately restarts. Used in for loops to reset the timer during every iteration. This is a safety measure should the program lose communication with the furnace.
+        """
+        if self.timer_status('reset'):
+            return self.timer_status('run')
+        else:
+            return False
 
     def setpoint_1(self,temperature=None,address=24):
-        """Sets target temperature of furnace.
-        Modbus address - 24
+        """If temperature is specified, this method sets the target temperature of setpoint 1. If no argument is passed it queries the current target of setpoint 1.
 
-        :param temp: temperature in °C
-        :type temp: float, int
+        :param temperature: temperature in °C
+        :type temperature: float, int
 
-        :returns: True if succesful, False if not
-        :rtype: Boolean
+        :Example:
+
+        >>> lab.furnace.setpoint_1()
+        350.0
+        >>> lab.furnace.setpoint_1(400)
+        True
+        >>> lab.furnace.setpoint_1()
+        400
         """
-        if temperature: return self._write(address,temperature,'Setting target temperature')
-        else: return self._read(address,'Getting target temperature')
+        return self._command(temperature,address,'setpoint 1')
+        # if temperature: return self._write(address,temperature,'Setting SP1')
+        # else: return self._read(address,'Getting SP1 temperature')
 
-    def setpoint_2(self,temperature=None,address=25):
-        """Sets target temperature of furnace.
-        Modbus address - 24
+    def setpoint_2(self, temperature=None, address=25):
+        """If temperature is specified, this method sets the target temperature of setpoint 2. If no argument is passed it queries the current target of setpoint 2.
 
-        :param temp: temperature in °C
-        :type temp: float, int
+        .. note::
+           Setpoint 2 is used as a 'safe' temperature for the furnace to reset to should something go wrong and communication is lost during high temperature experiments. The value is set during configuration of the instrument from the value RESET_TEMPERATURE in the config file. It is suggeseted to adjust the config file if a change is required rather than call this method directly.
 
-        :returns: True if succesful, False if not
-        :rtype: Boolean
+        :param temperature: temperature in °C
+        :type temperature: float, int
+
+        :Example:
+
+        >>> lab.furnace.setpoint_2()
+        40.0
+        >>> lab.furnace.setpoint_2(25.0)
+        True
+        >>> lab.furnace.setpoint_2()
+        25.0
         """
-        if temperature: return self._write(address,temperature,'Setting target temperature')
-        else: return self._read(address,'Getting target temperature')
+
+        if temperature: return self._write(self.default_temp,address,'setpoint 2')
+        else: return self._read(address,'Getting SP2 temperature')
+
+    def setpoint_select(self,selection=None,address=15):
+        """If selection is specified, selects the current working setpoint. If no argument is passed, it returns the current working setpoint.
+
+        options:
+            'setpoint_1'
+            'setpoint_2'
+
+        :param selection: desired working setpoint
+        :type selection: str
+
+        """
+        return self._command(selection,address,'current setpoint',{'setpoint_1':0,'setpoint_2':1})
+
+    def timer_duration(self,minutes=0,seconds=0,address=324):
+        """Sets the length of the timer.
+
+        :param minutes: number of minutes
+        :type timer_type: int,float
+
+        :param seconds: number of seconds
+        :type timer_type: int,float (floats internally converted to int)
+        """
+        total_seconds = minutes*60+int(seconds)
+        if total_seconds > 99*60+59:
+            logger.info("Can't set timer to more than 100 minutes at the current resolution")
+            return False
+        else:
+            return self._command(address,total_seconds,'timer duration')
+
+    def timer_end_type(self,selection=None,address=328):
+        """Determines the behavior of the timer. The default configuration in this program is to dwell. If selection is specified, the timer end type will be set accordingly. If no argument is passed, it returns the current end type of the timer.
+
+        .. note::
+
+            This method is only valid if the timer type is set to 'dwell'
+
+        options:
+            'off'       : do nothing
+            'current'   : dwell at the current setpoint
+            'transfer' : transfer to setpoint 2 and dwell
+
+        :param selection: desired type
+        :type selection: str
+
+        :Example:
+
+        >>> lab.furnace.timer_type()    #five minutes
+        'off'
+        >>> lab.furnace.timer_type('dwell')
+        True
+        >>> lab.furnace.timer_type()
+        'dwell'
+        """
+        return self._command(selection,address,'timer end type',{'off':0,'current':1,'transfer':2})
+
+    def timer_resolution(self,selection=None,address=320):
+        """Determines whether the timer display is in Hours:Mins or Mins:Seconds
+
+        options:
+            'H:M'   : Hours:Minutes
+            'M:S'   : Minutes:Seconds
+
+        :param selection: desired configuration
+        :type selection: str
+        """
+        return self._command(selection,address,'timer resolution',{'H:M':0,'M:S':1})
 
     def timer_status(self,status=None,address=23):
-        status_options = {'reset':0,'run':1,'hold':2,'end':3}
-        if status:
-            if status in status_options:
-                return self._write(address,status_options[status],'Setting timer status')
-            else:
-                logger.info('Incorrect argument for variable "status"')
-        else:
-            status = self._read(address,'Getting timer status')
-            for key,value in status_options.items():
-                if value == status: return key
+        """Controls the furnace timer. If status is specified, the timer status will be set accordingly. If no argument is passed, it returns the current status of the timer.
 
-    def timer_type(self,input=None,address=320):
-        type_options = {'off':0,'dwell':1,'delay':2,'soft start':3}
-        if input:
-            if input in type_options:
-                return self._write(address,type_options[type],'Setting timer type')
-            else:
-                output = self._read(address,'Getting timer type')
-                for key,value in type_options.items():
-                    if value == output: return key
+        options:
+            'reset' : resets the timer back to zero
+            'run'   : starts the timer
+            'hold'  : stops the timer
+            'end'   : the timer has ended (query only)
 
-    def timer_end_type(self,input=None,address=328):
-        type_options = {'off':0,'current':1,'alternate':2}
-        if input:
-            if input in type_options:
-                return self._write(address,type_options[type],'Setting timer end type')
-            else:
-                logger.info('Incorrect argument for variable "type"')
-        else:
-            output = self._read(address,'Getting timer end type')
-            for key,value in type_options.items():
-                if value == output: return key
+        :param status: desired working setpoint
+        :type status: str
 
-    def timer_resolution(self,val=None,address=320):
-        if val: return self._write(address,val,'Setting timer resolution')
-        else: return self._read(address,'Getting timer resolution')
+        :Example:
+
+        >>> lab.furnace.timer_duration(minutes=5)    #five minutes
+        True
+        >>> lab.furnace.timer_status()
+        'reset'
+        >>> lab.furnace.timer_status('run')
+        True
+        >>> lab.furnace.setpoint_1()
+        400
+        """
+        #TODO fix this ^^^^
+
+        if status == 'end': raise ValueError('"end" is not a valid option for controlling the timer. Please refer to the furnace documentation.')
+        return self._command(status,address,'timer status',{'reset':0,'run':1,'hold':2,'end':3})
+
+    def timer_type(self,selection=None,address=320):
+        """Determines the behavior of the timer. The default configuration in this program is to dwell. If status is specified, the timer status will be set accordingly. If no argument is passed, it returns the current status of the timer.
+
+        options:
+            'off'       : no timer
+            'dwell'     : dwell at a fixed temperature until the timer runs out
+            'delay'     : delayed start time
+            'soft_start': start a process at reduced power
+
+        :param selection: desired type
+        :type selection: str
+
+        :Example:
+
+        >>> lab.furnace.timer_type()    #five minutes
+        'off'
+        >>> lab.furnace.timer_type('dwell')
+        True
+        >>> lab.furnace.timer_type()
+        'dwell'
+        """
+        return self._command(selection,address,'timer type',{'off':0,'dwell':1,'delay':2,'soft_start':3})
 
     def other(self,address,value=None):
-        '''set value at specified modbus address.
+        '''Set value at specified modbus address.
 
         :param modbus_address: see furnace manual for adresses
         :type modbus_address: float, int
@@ -191,8 +333,10 @@ class Furnace():
         :returns: True if succesful, False if not
         :rtype: Boolean
         '''
-        if value: return self._write(address,val,'Setting address {}'.format(address))
-        else: self._read(address,'Getting address {}'.format(address))
+        if value:
+            return self._write(address,value,'Setting address {}'.format(address))
+        else:
+            return self._read(address,'Getting address {}'.format(address))
 
     def settings(self):
         return self.Ins.serial.get_settings()
@@ -205,47 +349,44 @@ class Furnace():
         logger.debug('Flushing furnace output')
         self.Ins.serial.reset_output_buffer()
 
+    def _command(self,value,address,message,options=None):
+        if value:
+            if options is None:
+                return self._write(address,value,'Setting {}'.format(message))
+            elif value in options:
+                return self._write(address,options[value],'Setting {}'.format(message))
+            else:
+                logger.info('Incorrect argument. Must be one of {}'.format([key for key in options.keys()]))
+        else:
+            output = self._read(address,'Getting {}'.format(message))
+            if options is None:
+                return output
+            else:
+                for key, value in options.items():
+                    if value == output:
+                        return key
 
+    def _write(self,modbus_address,value,message,decimals=0):
 
-
-
-    def _write(self,modbus_address,val,message,decimals=0):
-
-        c=0
-        while c <= self.maxtry:
+        for i in range(1,self.maxtry):
             try:
-                logger.debug('\t{} to {}'.format(message,val))
-                self.Ins.write_register(modbus_address,val,numberOfDecimals=decimals)
+                logger.debug('\t{} to {}'.format(message,value))
+                self.Ins.write_register(modbus_address,value,numberOfDecimals=decimals)
                 return True
             except Exception as e:
-                if c >= self.maxtry:
+                if i == self.maxtry:
                     logger.error('\tError: "{}" failed! Check log for details'.format(message))
                     logger.debug('Error message: {}'.format(e))
                     return False
-            # self.flush_output()
-            # self.flush_input()
-            c=c+1
 
     def _read(self,modbus_address,message,decimals=0):
 
-        c=0
-        while c <= self.maxtry:
+        for i in range(1,self.maxtry):
             try:
                 logger.debug('\t{}...'.format(message))
                 return self.Ins.read_register(modbus_address,numberOfDecimals=decimals)
             except Exception as e:
-                if c >= self.maxtry:
+                if i == self.maxtry:
                     logger.error('\t"{}" failed! Check log for details'.format(message))
                     logger.debug('Error message: {}'.format(e))
                     return False
-            # self.flush_output()
-            # self.flush_input()
-            c=c+1
-
-    def reset(self):
-        '''
-        resets the furnace to default temperature
-        '''
-        self._write(24,self.default_temp,'Furnace reset to {}'.format(default_temp))
-        self.flush_input()
-        self.flush_output()

@@ -2,6 +2,8 @@
 from laboratory import config
 import numpy as np
 from datetime import datetime as dt
+import pandas as pd
+import pickle
 
 class Data():
     """Storage for all data collected during experiments. Data file are loaded into this object for processing and plotting
@@ -28,10 +30,11 @@ class Data():
 
     def __init__(self,freq=None,filename=None):
 
-        self.thermo = Thermo()
+        # self.thermo = Thermo()
+        self.thermo = pd.DataFrame(columns=['tref','te1','te2','voltage'])
         self.gas = Gas()
-        self.temp = Temp()
-        self.imp = Impedance()
+        self.temp =  pd.DataFrame(columns=['indicated','target'])
+        self.imp = pd.DataFrame(columns=['z','theta'])
         self._freq = freq
         self.filename = filename
         self.time = []
@@ -59,10 +62,10 @@ class Data():
         else:
             return None
 
-        if np.max(freq_arr) > config.max_freq:
-            raise ValueError('Frequencies may not exceed {} MHz'.format(config.max_freq/10**6))
-        elif np.min(freq_arr) < config.min_freq:
-            raise ValueError('Frequencies may not be less than {} Hz'.format(config.min_freq))
+        if np.max(freq_arr) > config.MAXIMUM_FREQ:
+            raise ValueError('Frequencies may not exceed {} MHz'.format(config.MAXIMUM_FREQ/10**6))
+        elif np.min(freq_arr) < config.MINIMUM_FREQ:
+            raise ValueError('Frequencies may not be less than {} Hz'.format(config.MINIMUM_FREQ))
 
     # --filename---------------------------------------
     @property
@@ -78,16 +81,16 @@ class Data():
 
     def __repr__(self):
         """String representation of the :class:`Drivers.LCR` object."""
-        return "{}:\n\n\tdata.filename: {}\n\tdata.freq: {}\b ...] (n={})\n\tdata.time: {}\b, ...] (n={})\n\tdata.xpos: {}\b, ...] (n={})\n\tdata.step_time: {}\b, ...] (n={})\n\n{}\n\n{}\n\n{}\n\n{}".format(
+        return "{}:\n\nfilename: {}\nfreq: {}\b ...] (n={})\ntime: {}\b, ...] (n={})\nxpos: {}\b, ...] (n={})\nstep_time: {}\b, ...] (n={})\n\nThermopower:\n\n{}\n\nFurnace:\n\n{}\n\nImpedance:\n\n{}\n\nGas: {}".format(
             self.__class__.__name__,
             self.filename,
             self.freq[:5], len(self.freq),
             self.time[:2], len(self.time),
             self.xpos[:5], len(self.xpos),
             self.step_time[:2], len(self.step_time),
-            self.thermo,
-            self.temp,
-            self.imp,
+            self.thermo.tail(),
+            self.temp.tail(),
+            self.imp.tail(1).to_string(),
             self.gas
             )
 
@@ -106,40 +109,6 @@ class Data():
         # self.step_time = self.time.extend(other.time)
         return self
 
-class Thermo():
-    """Stores thermopower data
-
-    =============== ===========================================================
-    Attributes      Description
-    =============== ===========================================================
-    tref            temperature of the internal thermistor
-    te1             temperature of electrode 1
-    te2             temperature of electrode 2
-    volt            voltage across the sample
-    =============== ===========================================================
-    """
-
-    def __init__(self):
-        self.tref = []
-        self.te1 = []
-        self.te2 = []
-        self.volt = []
-        self.mean = []
-
-    def __repr__(self):
-        """String representation of the :class:`Drivers.LCR` object."""
-        return "{}:\n\n\tthermo.tref: {}\b, ...] (n={})\n\tthermo.te1: {}\b, ...] (n={})\n\tthermo.te2: {}\b, ...] (n={})\n\tthermo.volt: {}\b, ...] (n={})".format(
-            self.__class__.__name__,
-            self.tref[:5], len(self.tref),
-            self.te1[:5], len(self.tref),
-            self.te2[:5], len(self.tref),
-            self.volt[:5], len(self.tref)
-            )
-
-    def __add__(self,other):
-        for i in self.__dict__:
-            getattr(self,i).extend(getattr(other,i))
-        return self
 
 class Gas():
     """Stores the seperate gas data under one roof
@@ -155,109 +124,10 @@ class Gas():
     """
     def __init__(self):
 
-        self.h2 = MFC_data()
-        self.co2 = MFC_data()
-        self.co_a = MFC_data()
-        self.co_b = MFC_data()
-
-    def __repr__(self):
-        """String representation of the :class:`Drivers.LCR` object."""
-        return "{}:\n\n\tgas.h2:\n{}\n\tgas.co2:\n{}\n\tgas.co_a:\n {}\n\tgas.co_b:\n{}".format(
-            self.__class__.__name__,
-            self.h2,
-            self.co2,
-            self.co_a,
-            self.co_b
-            )
-
-    def __add__(self,other):
-        for i in self.__dict__:
-            getattr(self,i) + getattr(other,i)
-        return self
-
-class Temp():
-    """Stores furnace temperature data
-
-    =============== ===========================================================
-    Attributes      Description
-    =============== ===========================================================
-    target          target temperature of current cycle
-    indicated       temperature indicated by furnace
-    =============== ===========================================================
-    """
-    def __init__(self):
-
-        self.target = []
-        self.indicated = []
-
-    def __repr__(self):
-        """String representation of the :class:`Drivers.LCR` object."""
-        return "{}:\n\n\ttemp.target: {}\b, ...] (n={})\n\ttemp.indicated: {}\b, ...] (n={})".format(
-            self.__class__.__name__,
-            self.target[:5], len(self.target),
-            self.indicated[:5], len(self.indicated)
-            )
-
-    def __add__(self,other):
-        for i in self.__dict__:
-            getattr(self,i).extend(getattr(other,i))
-        return self
-
-class Impedance():
-    """Stores complex impedance data
-
-    =============== ===========================================================
-    Attributes      Description
-    =============== ===========================================================
-    Z               impedance
-    theta           phase angle
-    =============== ===========================================================
-    """
-    def __init__(self):
-
-        self.Z = []
-        self.theta = []
-
-    def __repr__(self):
-        """String representation of the :class:`Drivers.LCR` object."""
-        return "{}:\n\n\timp.Z: [{}\b, ...],\n\t\t{}\b, ...],\n\t\t{}\b, ...],...] (n={})\n\timp.theta: [{}\b, ...],\n\t\t{}\b, ...],\n\t\t{}\b, ...],...] (n={})".format(
-            self.__class__.__name__,
-            self.Z[0][:5],
-            self.Z[1][:5],
-            self.Z[2][:5], len(self.Z),
-            self.theta[0][:5],
-            self.theta[1][:5],
-            self.theta[2][:5], len(self.theta)
-            )
-
-    def __add__(self,other):
-        for i in self.__dict__:
-            getattr(self,i).extend(getattr(other,i))
-        return self
-
-class MFC_data():
-    """Stores gas data for an individual mass flow controller"""
-    def __init__(self):
-        self.pressure = []
-        self.temperature = []
-        self.vol_flow = []
-        self.mass_flow = []
-        self.setpoint = []
-
-    def __repr__(self):
-        """String representation of the :class:`Drivers.LCR` object."""
-        return "\t\tpressure: {}\b, ...] (n={})\n\t\ttemperature: {}\b, ...] (n={})\n\t\tvol_flow: {}\b, ...] (n={})\n\t\tmass_flow: {}\b, ...] (n={})\n\t\tsetpoint: {}\b, ...] (n={})".format(
-        self.pressure[:5], len(self.pressure),
-        self.temperature[:5], len(self.temperature),
-        self.vol_flow[:5], len(self.vol_flow),
-        self.mass_flow[:5], len(self.mass_flow),
-        self.setpoint[:5], len(self.setpoint)
-            )
-
-    def __add__(self,other):
-        for i in self.__dict__:
-            getattr(self,i).extend(getattr(other,i))
-        return self
+        self.h2 = pd.DataFrame(columns=['massflow','pressure','temperature','volumetric_flow','setpoint'])
+        self.co2 = pd.DataFrame(columns=['massflow','pressure','temperature','volumetric_flow','setpoint'])
+        self.co_a = pd.DataFrame(columns=['massflow','pressure','temperature','volumetric_flow','setpoint'])
+        self.co_b = pd.DataFrame(columns=['massflow','pressure','temperature','volumetric_flow','setpoint'])
 
 def load_data(filename):
     if filename.endswith('.txt'):
@@ -361,3 +231,24 @@ def save_obj(obj, filename):
     filename = filename.split('.')[0]
     with open(filename + '.pkl', 'wb') as output:  # Overwrites any existing file.
         pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
+
+def load_frequencies(min,max,n,log,filename):
+    """Creates an np.array of frequency values specified by either min, max and n or a file containing a list of frequencies specified by filename"""
+    if filename is not None:
+        with open(filename) as file:
+            freq = [line.rstrip() for line in file]
+        return np.around(np.array([float(f) for f in freq]))
+    elif log is True: return np.around(np.geomspace(min,max,n))
+    elif log is False: return np.around(np.linspace(min,max,n))
+    else:
+        return False
+
+def find_indicated(temperature,default=True):
+    #from calibration experiment
+    furnace = np.array([400,500,600,700,800,900,1000])
+    daq = np.array([253.46,335.82,422.67,512,604.5,698.7,795.3])
+    A = np.vstack([daq,np.ones(len(daq))]).T
+    m,c = np.linalg.lstsq(A,furnace,rcond=None)[0]
+
+    if default: return np.around(np.multiply(m,temperature)+c,2) #return a furnace value for given temperature
+    else: return np.around(np.divide(temperature-c,m),2)    #return a daq value for given temperature
