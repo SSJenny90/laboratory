@@ -2,41 +2,42 @@
 This is a configuration file for setting up the laboratory. It contains settings to set the name of the the experiment, sample dimensions, instrument addresses and physical constants. Experiment name and sample dimensions should be modified with each new experiment. Everything else can remain as is unless the physical setup of the lab has changed.
 """
 
-email = 'samuel.jennings@adelaide.edu.au'
+EMAIL = 'samuel.jennings@adelaide.edu.au'
 
 #-------------------Experiment settings-------------------
-name = 'High-T test run'
-sample_thickness = 2.6 #in mm
-sample_diameter = 12.7 #in mm
+PROJECT_NAME = 'High-T test run'
+SAMPLE_THICKNESS = 2.6 #in mm
+SAMPLE_DIAMETER = 12.7 #in mm
 
 #-------------------DAQ settings-------------------
-daq_address = 'USB0::0x0957::0x2007::MY49021284::INSTR'
+DAQ_ADDRESS = 'USB0::0x0957::0x2007::MY49021284::INSTR'
 #daq channels
-tref = '101'
-te1 = '104'
-te2 = '105'
-volt = '103'
-switch = '205,206'
-thermistor = 10000
-temp_integration_time = 10   #in cycles
-volt_integration_time = 1   #in cycles
+REFERENCE_TEMPERATURE = '101'
+ELECTRODE_1 = '104'
+ELECTRODE_2 = '105'
+VOLTAGE = '103'
+SWITCH = '205,206'
+THERMISTOR_OHMS = 10000
+TEMPERATURE_INTEGRATION_TIME = 10   #in cycles
+VOLTAGE_INTEGRATION_TIME = 1   #in cycles
 
 #-------------------LCR settings-------------------
-lcr_address = 'USB0::0x0957::0x0909::MY46312484::INSTR'
-min_freq = 20       #in Hz
-max_freq = 2000000  #in Hz (20MHz)
+LCR_ADDRESS = 'USB0::0x0957::0x0909::MY46312484::INSTR'
+MINIMUM_FREQ = 20       #in Hz
+MAXIMUM_FREQ = 2000000  #in Hz (20MHz)
 
 #-------------------Furnace settings-------------------
-furnace_address = 'COM4'
-default_temp = 40       #temperature the furnace resets to
+FURNACE_ADDRESS = 'COM5'
+RESET_TEMPERATURE = 40       #temperature the furnace resets to
 
 #-------------------Motor settings-------------------
-motor_address = 'COM9'
-subdivision = 2  #from back of motion controller
-step_angle = 0.9  #from the side of the motor
-pitch = 4        #in mm - from the optics focus website
-max_xpos = 10000
+MOTOR_ADDRESS = 'COM8'
+SUBDIVISION = 2  #from back of motion controller
+STEP_ANGLE = 0.9  #from the side of the motor
+PITCH = 4        #in mm - from the optics focus website
+MAXIMUM_STAGE_POSITION = 10000
+TEMPERATURE_EQUILIBRIUM_POSITION = 5500
 
 #-------------------Mass Flow settings-------------------
-mfc_address = 'COM8'    #for windows
+MFC_ADDRESS = 'COM6'    #for windows
 # mfc_address = '/dev/tty.SLAB_USBtoUART'   #for mac
