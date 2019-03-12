@@ -24,7 +24,7 @@ class Motor():
     connect         attempt to connect to the LCR meter
     move            moves the stage the desired amount in mm
     get_xpos        get the absolute position of the stage
-    set_xpos        moves the stage the desired amount in steps
+    position        moves the stage the desired amount in steps
     get_speed       get the current speed of the stage
     set_speed       sets the movement speed of the stage
     reset           resets the device
@@ -36,9 +36,9 @@ class Motor():
         self.maxtry = 5
         self.status = False
         self.home = 4800
-        self.address = config.motor_address
-        self.pulse_equiv = config.pitch * config.step_angle / (360*config.subdivision)
-        self.max_xpos = config.max_xpos
+        self.address = config.MOTOR_ADDRESS
+        self.pulse_equiv = config.PITCH * config.STEP_ANGLE / (360*config.SUBDIVISION)
+        self.max_xpos = config.MAXIMUM_STAGE_POSITION
 
         self._connect(ports)
 
@@ -94,7 +94,7 @@ class Motor():
 
     def center(self):
         """Moves stage to the absolute center"""
-        return self.set_xpos(self.max_xpos/2)
+        return self.position(self.max_xpos/2)
 
     def move(self,displacement):
         """Moves the stage in the positive or negative direction
@@ -105,57 +105,53 @@ class Motor():
         command = self._convertdisplacement(displacement)
         return self._write(command,'Moving stage {}mm'.format(displacement))
 
-    def set_xpos(self,xpos):
-        """Moves the linear stage to an absolute x position
+    def position(self,requested_position=None):
+        """Get or set the absolute position of the linear stage
 
-        :param xpos: desired absolute position of stage in controller pulses
-        :type xpos: float, int
+        :param requested_position: requested absolute position of stage in controller pulse units
+        :type requested_position: float, int
         """
-        if xpos > self.max_xpos: xpos = self.max_xpos
-        elif xpos <= 0: return self.reset()
+        #this is a get request
+        if requested_position is None:
+            return self._read('?X','Getting x-position')
+        #this is a set request
+        else:
+            current_position = self._read('?X','Getting x-position')
+            if requested_position > self.max_xpos:
+                requested_position = self.max_xpos
+            elif requested_position <= 0:
+                return self.reset()
 
-        displacement = (self.get_xpos() - xpos)
-        if displacement == 0: return True
+            displacement = (current_position - requested_position)
+            if displacement == 0:
+                return True
 
-        direction = '-' if displacement > 0 else '+'
-        command = 'X{}{}'.format(direction,int(abs(displacement)))  #format to readable string
-        return self._write(command,'Setting x-position'.format(xpos))
+            direction = '-' if displacement > 0 else '+'
+            command = 'X{}{}'.format(direction,int(abs(displacement)))  #format to readable string
+            return self._write(command,'Setting x-position'.format())
 
-    def set_speed(self,motor_speed):
-        """Sets the speed of the motor
+    def speed(self,motor_speed=None):
+        """Get or set the speed of the motor
 
         :param motor_speed: speed of the motor in mm/s
         :type motor_speed: float, int
         """
-        command = self._convertspeed(motor_speed)
-        return self._write(command,'Setting motor speed')
+        #this is a get request
+        if motor_speed is None:
+            speed = self._read('?V','Getting motor speed...')
+            return self._convertspeed(speed,False) #needs to be converted to mm/s
+        #this is a set request
+        else:
+            command = self._convertspeed(motor_speed)
+            return self._write(command,'Setting motor speed')
 
-    def get_speed(self):
-        """Gets the current speed of the motor
-
-        :returns: speed of motor
-        :rtype: float
-        """
-        command = '?V'
-        speed = self._read(command,'Getting motor speed...')
-        speed = self._convertspeed(speed,False) #needs to be converted to mm/s
-        return speed
-
-    def get_xpos(self):
-        """Gets the current position of the stage
-
-        :returns: x-position of stage
-        :rtype: str
-        """
-        return self._read('?X','Getting x-position')
-
-    def home(self):
+    def return_home(self):
         """Moves furnace to the center of the stage (x = 5000)
         """
-        return self.set_xpos(self.home)
+        return self.position(self.home)
 
     def reset(self):
-        """Resets the stage position so that xPos=0"""
+        """Resets the stage position so that the absolute position = 0"""
         return self._write('HX0','Resetting stage...')
 
     def test(self):
@@ -183,10 +179,10 @@ class Motor():
     def _convertspeed(self,speed,default=True):
         """Converts a speed given in mm/s into a command recognisable by the motor"""
         if default:
-            Vspeed = (speed*0.03/self.pulseEquiv)-1        #convert from mm/s to Vspeed
+            Vspeed = (speed*0.03/self.pulse_equiv)-1        #convert from mm/s to Vspeed
             return 'V' + str(int(round(Vspeed)))        #command for motion controller
         else:
-            return round((speed+1)*self.pulseEquiv/0.03,2)   #output speed
+            return round((speed+1)*self.pulse_equiv/0.03,2)   #output speed
 
     def _write(self,command,message):
         c=0

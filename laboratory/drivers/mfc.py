@@ -119,7 +119,7 @@ class MFC(AlicatController):
     def __init__(self):
         self.maxtry = 5
         self.status = False
-        self.address = config.mfc_address
+        self.address = config.MFC_ADDRESS
 
         self._connect()
 

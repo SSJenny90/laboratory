@@ -29,7 +29,7 @@ class LCR():
 
     def __init__(self):
 
-        self.address = config.lcr_address
+        self.address = config.LCR_ADDRESS
         self.maxtry = 5
         self.status = False
 

@@ -3,8 +3,6 @@ from laboratory import config
 import visa
 logger = loggers.lab(__name__)
 
-
-
 class DAQ():
     """
     Driver for the 34970A Data Acquisition / Data Logger Switch Unit
@@ -42,15 +40,15 @@ class DAQ():
     """
     def __init__(self):
         #these attributes must only be changed if the physical wiring has been changed. if required, change values in the config.py file
-        self.tref = config.tref
-        self.te1 = config.te1
-        self.te2 = config.te2
-        self.volt = config.volt
-        self.switch = config.switch
-        self.therm = config.thermistor
-        self.address = config.daq_address
-        self.temp_integration = config.temp_integration_time
-        self.volt_integration = config.volt_integration_time
+        self.tref = config.REFERENCE_TEMPERATURE
+        self.te1 = config.ELECTRODE_1
+        self.te2 = config.ELECTRODE_2
+        self.volt = config.VOLTAGE
+        self.switch = config.SWITCH
+        self.therm = config.THERMISTOR_OHMS
+        self.address = config.DAQ_ADDRESS
+        self.temp_integration = config.TEMPERATURE_INTEGRATION_TIME
+        self.volt_integration = config.VOLTAGE_INTEGRATION_TIME
 
         self.maxtry = 5
         self.status = False
@@ -85,12 +83,13 @@ class DAQ():
             self.status = False
         else:
             logger.info('    DAQ - CONNECTED!')
+            self.configure()
             self.status = True
 
     def configure(self):
         """Configures the DAQ according to the current wiring"""
-        print('')
-        logger.info('Configuring DAQ...')
+        # print('')
+        logger.debug('Configuring DAQ...')
         self.reset()
         self._config_temp()
         self._config_volt()
