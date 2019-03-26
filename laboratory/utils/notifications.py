@@ -2,8 +2,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 import smtplib
+from laboratory import config
 
-def send_email(toaddr,message,cc=False,logfile=False,datafile=False):
+def send_email(message,cc=False,logfile=False,datafile=False):
     """Sends an email to the specified email address. logfile or datafile can
     be attached if desired. used mainly for email updates on progress during
     long measurement cycles. mailer is geophysicslabnotifications@gmail.com.
@@ -23,42 +24,49 @@ def send_email(toaddr,message,cc=False,logfile=False,datafile=False):
     :param datafile: whether to attach the current datafile
     :type datafile: boolean
     """
-    fromaddr = "geophysicslabnotifications@gmail.com"
-    pw = 'Laboratory123!'
+    if not config.EMAIL:
+        return
 
-    msg = MIMEMultipart()
-    msg['From'] = fromaddr
-    msg['To'] = toaddr
-    if cc:
-        msg['Cc'] = cc
-    msg['Subject'] = "Lab Notification"
-    body = 'Hi,\n\n{}\n\nCheers,\nYour Friendly Lab Assistant'.format(message)
-    msg.attach(MIMEText(body, 'plain'))
+    try:
+        toaddr = config.EMAIL
+        fromaddr = "geophysicslabnotifications@gmail.com"
+        pw = 'Laboratory123!'
 
-    if logfile:
-        part = MIMEBase('application', "octet-stream")
-        part.set_payload(open(logfile, "rb").read())
-        part.add_header('Content-Disposition', 'attachment', filename='controlLog.txt')
-        msg.attach(part)
+        msg = MIMEMultipart()
+        msg['From'] = fromaddr
+        msg['To'] = toaddr
+        if cc:
+            msg['Cc'] = cc
+        msg['Subject'] = "Lab Notification"
+        body = 'Hi,\n\n{}\n\nCheers,\nYour Friendly Lab Assistant'.format(message)
+        msg.attach(MIMEText(body, 'plain'))
 
-    if datafile:
-        part = MIMEBase('application', "octet-stream")
-        part.set_payload(open(datafile, "rb").read())
-        part.add_header('Content-Disposition', 'attachment', filename='labData.txt')
-        msg.attach(part)
+        if logfile:
+            part = MIMEBase('application', "octet-stream")
+            part.set_payload(open(logfile, "rb").read())
+            part.add_header('Content-Disposition', 'attachment', filename='controlLog.txt')
+            msg.attach(part)
 
-    server = smtplib.SMTP('smtp.gmail.com', 587)
-    server.connect("smtp.gmail.com",587)
-    server.ehlo()
-    server.starttls()
-    server.ehlo()
-    server.login(fromaddr, pw)
-    text = msg.as_string()
-    if cc:
-        server.sendmail(fromaddr, [toaddr,cc], text)
-    else:
-        server.sendmail(fromaddr, toaddr, text)
-    server.quit
+        if datafile:
+            part = MIMEBase('application', "octet-stream")
+            part.set_payload(open(datafile, "rb").read())
+            part.add_header('Content-Disposition', 'attachment', filename='labData.txt')
+            msg.attach(part)
+
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.connect("smtp.gmail.com",587)
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(fromaddr, pw)
+        text = msg.as_string()
+        if cc:
+            server.sendmail(fromaddr, [toaddr,cc], text)
+        else:
+            server.sendmail(fromaddr, toaddr, text)
+        server.quit
+    except Exception as e:
+        pass
 
 class Messages():
     device_error = 'I\'ve got some bad news! The {} is no longer sending or receiving messages so I\'m going to shut down the lab until you can come take a look.'

@@ -30,42 +30,15 @@ class Data():
 
     def __init__(self,freq=None,filename=None):
 
-        # self.thermo = Thermo()
-        self.thermo = pd.DataFrame(columns=['tref','te1','te2','voltage'])
+        self.thermo = pd.DataFrame(columns=['indicated','target','tref','te1','te2','voltage'])
         self.gas = Gas()
-        self.temp =  pd.DataFrame(columns=['indicated','target'])
         self.imp = pd.DataFrame(columns=['z','theta'])
-        self._freq = freq
         self.filename = filename
         self.time = []
-        self.xpos = []
+        self.stage_position = []
         self.step_time = []
-
-    # --freq-------------------------------------------
-    @property
-    def freq(self):
-        return self._freq
-
-    @freq.setter
-    def freq(self,freq_arr):
-        """
-        Set the freq values
-
-        :param freq_arr: array of frequencies (Hz)
-        :type freq_arr: np.ndarray
-        """
-        if freq_arr is not None:
-            for f in freq_arr:
-                if not isinstance(f,(float,int)):
-                    raise TypeError('data.freq must be a list of floats or ints')
-            self._freq = np.array(freq_arr)
-        else:
-            return None
-
-        if np.max(freq_arr) > config.MAXIMUM_FREQ:
-            raise ValueError('Frequencies may not exceed {} MHz'.format(config.MAXIMUM_FREQ/10**6))
-        elif np.min(freq_arr) < config.MINIMUM_FREQ:
-            raise ValueError('Frequencies may not be less than {} Hz'.format(config.MINIMUM_FREQ))
+        self.fugacity = pd.DataFrame(columns=['fugacity','ratio','offset'])
+        self.load_frequencies()
 
     # --filename---------------------------------------
     @property
@@ -80,35 +53,49 @@ class Data():
         self._filename = fname
 
     def __repr__(self):
+        pd.set_option('display.max_rows', 5)
         """String representation of the :class:`Drivers.LCR` object."""
-        return "{}:\n\nfilename: {}\nfreq: {}\b ...] (n={})\ntime: {}\b, ...] (n={})\nxpos: {}\b, ...] (n={})\nstep_time: {}\b, ...] (n={})\n\nThermopower:\n\n{}\n\nFurnace:\n\n{}\n\nImpedance:\n\n{}\n\nGas: {}".format(
-            self.__class__.__name__,
-            self.filename,
-            self.freq[:5], len(self.freq),
-            self.time[:2], len(self.time),
-            self.xpos[:5], len(self.xpos),
-            self.step_time[:2], len(self.step_time),
-            self.thermo.tail(),
-            self.temp.tail(),
-            self.imp.tail(1).to_string(),
-            self.gas
+        return "\nFilename:\t{}\nFrequencies:\t{} (length={})\nTime:\t\t{} (length={})\nStage position:\t{} (length={})\nStep time:\t{} (length={})\n\nThermopower:\n\n{}\n\nCO2:\n\n{}\n\nCO_a:\n\n{}\n\nCO_b:\n\n{}\n\nH2:\n\n{}\n\nImpedance:\n\n{}\n\n".format(
+            '/'.join(self.filename.split('\\')[-2:]),
+            type(self.freq), len(self.freq),
+            type(self.time), len(self.time),
+            type(self.stage_position), len(self.stage_position),
+            type(self.step_time), len(self.step_time),
+            self.thermo,
+            self.gas.co2,
+            self.gas.co_a,
+            self.gas.co_b,
+            self.gas.h2,
+            self.imp,
             )
 
-    def __add__(self,other):
-        if not np.array_equal(self.freq,other.freq):
-            raise Exception('Data object must use the same frequency values')
-            return
+    def load_frequencies(self,min=config.MINIMUM_FREQ,max=config.MAXIMUM_FREQ,n=50,log=True,filename=None):
+        """Creates an np.array of frequency values specified by either min, max and n or a file containing a list of frequencies specified by filename"""
+        if filename is not None:
+            with open(filename) as file:
+                freq = [line.rstrip() for line in file]
+            self.freq = np.around(np.array([float(f) for f in freq]))
+        elif log is True:
+            self.freq = np.around(np.geomspace(min,max,n))
+        elif log is False:
+            self.freq = np.around(np.linspace(min,max,n))
+        else:
+            return False
 
-        self.thermo = self.thermo + other.thermo
-        self.gas = self.gas + other.gas
-        self.temp = self.temp + other.temp
-        self.imp = self.imp + other.imp
-        self.filename = self.filename + '_a'
-        self.time.extend(other.time)
-        # self.xpos = self.time.extend(other.time)
-        # self.step_time = self.time.extend(other.time)
-        return self
-
+    # def __add__(self,other):
+    #     if not np.array_equal(self.freq,other.freq):
+    #         raise Exception('Data object must use the same frequency values')
+    #         return
+    #
+    #     self.thermo = self.thermo + other.thermo
+    #     self.gas = self.gas + other.gas
+    #     self.temp = self.temp + other.temp
+    #     self.imp = self.imp + other.imp
+    #     self.filename = self.filename + '_a'
+    #     self.time.extend(other.time)
+    #     # self.xpos = self.time.extend(other.time)
+    #     # self.step_time = self.time.extend(other.time)
+    #     return self
 
 class Gas():
     """Stores the seperate gas data under one roof
@@ -116,18 +103,18 @@ class Gas():
     =============== ===========================================================
     Attributes      Description
     =============== ===========================================================
-    h2              hydrogen flow rate
-    co2             carbon dioxide flow rate
-    co_a            carbon monoxide corase flow rate
-    co_b            carbon monoxide corase flow rate
+    h2              hydrogen data
+    co2             carbon dioxide data
+    co_a            carbon monoxide coarse control data [0-50SCCM]
+    co_b            carbon monoxide fine control data [0-2SCCM]
     =============== ===========================================================
     """
     def __init__(self):
 
-        self.h2 = pd.DataFrame(columns=['massflow','pressure','temperature','volumetric_flow','setpoint'])
-        self.co2 = pd.DataFrame(columns=['massflow','pressure','temperature','volumetric_flow','setpoint'])
-        self.co_a = pd.DataFrame(columns=['massflow','pressure','temperature','volumetric_flow','setpoint'])
-        self.co_b = pd.DataFrame(columns=['massflow','pressure','temperature','volumetric_flow','setpoint'])
+        self.h2 = pd.DataFrame()
+        self.co2 = pd.DataFrame()
+        self.co_a = pd.DataFrame()
+        self.co_b = pd.DataFrame()
 
 def load_data(filename):
     if filename.endswith('.txt'):

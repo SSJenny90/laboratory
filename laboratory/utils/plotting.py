@@ -54,17 +54,17 @@ class LabPlots():
     """
     def __init__(self,data):
         self.data = data
-        self.t_elapsed = dt_to_hours(data.time[0],data.time)
+        self.time_elapsed = dt_to_hours(data.time[0],data.time)
         # self.data.thermo.mean =  np.average(np.array([data.thermo.te1,data.thermo.te2]),axis=0)
         self.data.thermo.mean = [(te1_i + te2_i)/2 for te1_i,te2_i in zip(self.data.thermo.te1,self.data.thermo.te2)]
         # self._resistivity = _calculate_conductivity()
 
-    def voltage(self):
+    def voltage(self,**kwargs):
         """Plots voltage versus time"""
         fig = plt.figure('Voltage')
-        ax = fig.add_subplot(111)
+        ax = fig.add_subplot(111,**kwargs)
 
-        ax.plot(self.t_elapsed,self.data.thermo.volt,'rx')
+        ax.plot(self.time_elapsed,self.data.thermo.voltage,'rx')
 
         ax.set_ylabel('Voltage [mV]')
         ax.tick_params(direction='in')
@@ -72,13 +72,13 @@ class LabPlots():
 
         plt.show()
 
-    def cond_time(self):
+    def cond_time(self,**kwargs):
         """Plots conductivity versus time"""
         return 'This plot is not working yet!'
         fig = plt.figure('Conductivity')
-        ax = fig.add_subplot(111)
+        ax = fig.add_subplot(111,**kwargs)
 
-        ax.plot(self.t_elapsed,self.data.imp.cond,'rx')
+        ax.plot(self.time_elapsed,self.data.imp.cond,'rx')
 
         ax.set_ylabel('Conductivity [S]')
         ax.tick_params(direction='in')
@@ -86,59 +86,45 @@ class LabPlots():
 
         plt.show()
 
-    def temperature(self):
-        """Plots furnace indicated and target temperature, thermocouple temperature and thermistor self.data versus time elapsed"""
+    def temperature(self,**kwargs):
+        """Plots furnace indicated and target temperature, thermocouple temperature and thermistor self.data versus time elapsed. Key word argumnets may be passed through to customize this plot"""
+
         thermo = self.data.thermo
-        temp = self.data.temp
 
-        fig = plt.figure('Temperature')
-        ax = fig.add_subplot(111)
+        fig = plt.figure()
+        ax = fig.add_subplot(111,**kwargs)
 
-        ax.plot(self.t_elapsed,thermo.tref,'r-')
-        ax.plot(self.t_elapsed,thermo.te1,'b.',label='Te1')
-        ax.plot(self.t_elapsed,thermo.te2,'g.',label='Te2')
-        ax.step(self.t_elapsed,temp.target,'y',linestyle='--',label='Target temperature')
-        # ax.plot(self.t_elapsed,temp.indicated,'m.',label='Furnace indicated')
+        ax.plot(self.time_elapsed,thermo.tref,'r-')
+        ax.plot(self.time_elapsed,thermo.te1,'b.',label='Te1')
+        ax.plot(self.time_elapsed,thermo.te2,'g.',label='Te2')
+        ax.step(self.time_elapsed,thermo.target,'y',linestyle='--',label='Target temperature')
+        ax.plot(self.time_elapsed,thermo.indicated,'m',label='Furnace indicated')
 
-        ax.text(0,thermo.tref[0]+5,'Tref',color='red')
-        ax.text(0,temp.target[0]+5,'Target',color='y')
+        # ax.text(0,thermo.tref[0]+5,'Tref',color='red')
+        # ax.text(0,thermo.target[0]+5,'Target',color='y')
 
         ax.set_ylabel(r'$Temperature [\circ C]$')
-        ax.set_ylim(bottom=0)
         ax.set_xlabel('Time Elapsed [Hours]')
-        ax.set_xlim(left=0)
         ax.tick_params(direction='in')
         fig.tight_layout()
         ax.legend()
         plt.show()
 
-    def cole(self,temp_list,start=0,end=None,fit=False):
+    def cole(self,temp_list,start=0,end=None,fit=False,**kwargs):
         """Creates a Cole-Cole plot (imaginary versus real impedance) at a given temperature. Finds the available self.data to the temperature specified by 'temp'. A linear least squares circle fit can be added by setting fit=True.
 
         :param temp: temperature in degrees C
         :type temp: float/int
         """
-        def circle_fit(Re,Im,ax):
 
-            xc,yc,R,residu = leastsq_circle(Re,Im)
-
-            pi = np.pi
-            theta_fit = np.linspace(0, pi, 180)   #semi circle
-
-            x_fit = xc + R*np.cos(theta_fit)
-            y_fit = yc + R*np.sin(theta_fit)
-
-            ax.plot(x_fit, y_fit,'b-',lw=1,label='lsq_fit') #plot circle as blue line
-            ax.plot([xc],[yc],'bx',mec='y',mew=1,label='fit_center')  #plot center of circle as blue cross
-
-        fig = plt.figure('Cole-Cole plot')
-        ax = fig.add_subplot(111)
+        fig = plt.figure()
+        ax = fig.add_subplot(111,**kwargs)
 
         if not isinstance(temp_list,list): temp_list = [temp_list]
 
         for temp in temp_list:
             [index, Tval] = index_temp(np.array(self.data.thermo.te1),temp)
-            Z = self.data.imp.Z[index][start:end]
+            Z = self.data.imp.z[index][start:end]
             theta = self.data.imp.theta[index][start:end]
             Re,Im = get_Re_Im(Z,theta)
 
@@ -155,6 +141,7 @@ class LabPlots():
         ax.set_ylabel('-Im(Z)')
         ax.set_xlabel('Re(Z)')
         ax.ticklabel_format(style='sci',scilimits=(-3,4),axis='both')
+        ax.set_title('Cole-Cole')
 
         atxt = AnchoredText('@ ' + str(Tval) + '$^\circ$ C',loc=2)
         ax.add_artist(atxt)
@@ -172,34 +159,43 @@ class LabPlots():
         co_a = np.asarray(self.data.gas.co_a.mass_flow)
         co_b = np.asarray(self.data.gas.co_b.mass_flow)
 
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
+        # fig = plt.figure()
+        # ax1 = fig.add_subplot(211)
+        fig, (ax1, ax2) = plt.subplots(nrows=2, sharex=True)
 
-        ax.plot(self.t_elapsed,h2,'m-',label='H2')
-        ax.plot(self.t_elapsed,co2,'b-',label='CO2')
-        ax.plot(self.t_elapsed,np.add(co_a,co_b),'g-',label='CO_total')
+        ax1.plot(self.time_elapsed,h2,'m.',label='H2')
+        ax1.plot(self.time_elapsed,co2,'b.',label='CO2')
+        ax1.plot(self.time_elapsed,np.add(co_a,co_b),'g.',label='CO_total')
 
-        ax.set_ylabel('Gas concentrations [%]')
-        ax.set_xlabel('Time elapsed [hours]')
-        ax.tick_params(direction='in')
-        ax.set_ylim(bottom=0)
-        ax.legend()
+        ax1.set_ylabel('Mass Flow [SCCM]')
+        # ax1.tick_params(direction='in')
+        ax1.set_ylim(bottom=0)
+        ax1.set_xlim(left=0)
+        ax1.set_title('Gas levels')
+        ax1.legend()
 
+        # ax2 = fig.add_subplot(212)
+        ax2.plot(self.time_elapsed,self.data.fugacity.fugacity,'r--',label='Log[Fugacity]')
+        ax2.set_xlabel('Time elapsed [hours]')
+        ax2.set_ylabel('log fo2p [Pascals]')
+        # ax2.tick_params(direction='in')
+
+        fig.tight_layout()
         plt.show()
 
     def imp_diameter(self):
         """Plots the impedance diameter versus time_elapsed"""
 
         diameter = []
-        for i,val in enumerate(self.data.imp.Z):
-            z = self.data.imp.Z[i]
+        for i,val in enumerate(self.data.imp.z):
+            z = self.data.imp.z[i]
             theta = self.data.imp.theta[i]
             diameter.append(impedance_fit(z[1:],theta[1:]))
 
         fig = plt.figure()
         ax = fig.add_subplot(111)
 
-        ax.plot(self.t_elapsed,diameter,'r.')
+        ax.plot(self.time_elapsed,diameter,'r.')
 
         ax.set_xlabel('Time Elapsed [hours]')
         ax.set_ylabel(r'$Diameter [\Omega$]')
@@ -240,6 +236,19 @@ class LabPlots():
         ax.invert_xaxis()
         fig.tight_layout()
         plt.show()
+
+def circle_fit(x,y,ax):
+
+    xc,yc,R,residu = leastsq_circle(x,y)
+
+    pi = np.pi
+    theta_fit = np.linspace(0, pi, 180)   #semi circle
+
+    x_fit = xc + R*np.cos(theta_fit)
+    y_fit = yc + R*np.sin(theta_fit)
+
+    ax.plot(x_fit, y_fit,'b-',lw=1,label='lsq_fit') #plot circle as blue line
+    ax.plot([xc],[yc],'bx',mec='y',mew=1,label='fit_center')  #plot center of circle as blue cross
 
 def impedance_fit(Z,theta):
 
@@ -318,12 +327,6 @@ def calculate_resistivity(Z,theta):
     area = np.pi * radius**2
 
     return thickness / area * resistance
-
-
-
-
-
-
 
 if __name__ == '__main__':
     z = [1.20E+06,1.38E+05,5.44E+04,9.31E+03,1.16E+03]

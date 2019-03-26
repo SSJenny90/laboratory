@@ -1,6 +1,7 @@
 from laboratory.utils import loggers
 from laboratory import config
 import visa
+import pprint
 logger = loggers.lab(__name__)
 
 class DAQ():
@@ -46,7 +47,7 @@ class DAQ():
         self.volt = config.VOLTAGE
         self.switch = config.SWITCH
         self.therm = config.THERMISTOR_OHMS
-        self.address = config.DAQ_ADDRESS
+        self.port = config.DAQ_ADDRESS
         self.temp_integration = config.TEMPERATURE_INTEGRATION_TIME
         self.volt_integration = config.VOLTAGE_INTEGRATION_TIME
 
@@ -55,28 +56,24 @@ class DAQ():
         self.connect()
 
     def __str__(self):
-        """String representation of the :class:`Drivers.LCR` object."""
-
-        return "{}.{}<id=0x{:x}\n\naddress = {}\nmaxtry = {}\nstatus = {}\ntref   = {}\nte1    = {}\nte2    = {}\nvolt   = {}\nswitch = {}\ntherm  = {}".format(
-            self.__module__,
-            self.__class__.__name__,
-            id(self),
-            self.address,
-            self.maxtry,
-            self.status,
-            self.tref,
-            self.te1,
-            self.te2,
-            self.volt,
-            self.switch,
-            self.therm
-            )
+        """Prints info about the DAQ"""
+        output = {'port': self.port,
+                  'maxtry': self.maxtry,
+                  'thermistor': self.therm,
+                  'channels':
+                  {'reference temperature': self.tref,
+                  'electrode 1':self.te1,
+                  'electrode 2': self.te2,
+                  'voltage': self.volt,
+                  'switch':self.switch,}
+             }
+        return "\n    'status': {}".format(self.status) + '\n ' + pprint.pformat(output, indent=4, width=1)[1:]
 
     def connect(self):
         """Connects to the DAQ"""
         try:
             rm = visa.ResourceManager() #used by pyvisa to connect to LCR and DAQ. Leave.
-            self.Ins = rm.open_resource(self.address)
+            self.Ins = rm.open_resource(self.port)
         except Exception as e:
             logger.error('    DAQ - FAILED (check log for details)')
             logger.debug(e)
@@ -105,7 +102,9 @@ class DAQ():
         :rtype: list of floats (degrees Celsius)
         """
         command = 'ROUT:SCAN (@{},{},{})'.format(self.tref,self.te1,self.te2)
-        return self._read(command,'Getting temperature data')
+        vals = self._read(command,'Getting temperature data')
+        self.mean_temp = (vals[1]+vals[2])/2
+        return vals
 
     def get_voltage(self):
         """Gets voltage across the sample from the DAQ
@@ -114,13 +113,13 @@ class DAQ():
         :rtype: float
         """
         command = 'ROUT:SCAN (@{})'.format(self.volt)
-        return self._read(command,'Getting voltage data')
+        return self._read(command,'Getting voltage data')[0]
 
     def get_thermopower(self):
         """Collects both temperature and voltage data and returns a list"""
-        thermo = self.get_temp()
-        thermo.append(self.get_voltage()[0])
-        return thermo
+        temp = self.get_temp()
+        voltage = self.get_voltage()
+        return {'tref':temp[0],'te1':temp[1],'te2':temp[2],'voltage':voltage}
 
     def reset(self):
         '''Resets the device'''

@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 import pickle
 # from laboratory import config
 
-
 logger = loggers.lab(__name__)
 
 def stage_temperature_profile(self, filename, temperature=500, step=.1, mins_per_step=10, start_position=4000, end_position=6000):

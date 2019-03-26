@@ -24,7 +24,7 @@ VOLTAGE_INTEGRATION_TIME = 1   #in cycles
 #-------------------LCR settings-------------------
 LCR_ADDRESS = 'USB0::0x0957::0x0909::MY46312484::INSTR'
 MINIMUM_FREQ = 20       #in Hz
-MAXIMUM_FREQ = 2000000  #in Hz (20MHz)
+MAXIMUM_FREQ = 2000000  #in Hz (2MHz)
 
 #-------------------Furnace settings-------------------
 FURNACE_ADDRESS = 'COM5'
@@ -38,6 +38,14 @@ PITCH = 4        #in mm - from the optics focus website
 MAXIMUM_STAGE_POSITION = 10000
 TEMPERATURE_EQUILIBRIUM_POSITION = 5500
 
-#-------------------Mass Flow settings-------------------
+#-------------------Gas settings-------------------
 MFC_ADDRESS = 'COM6'    #for windows
-# mfc_address = '/dev/tty.SLAB_USBtoUART'   #for mac
+# MFC_ADDRESS = '/dev/tty.SLAB_USBtoUART'   #for mac
+H2_UPPER_LIMIT = 50
+H2_PRECISION = 2
+CO2_UPPER_LIMIT = 200
+CO2_PRECISION = 2
+CO_A_UPPER_LIMIT = 50
+CO_A_PRECISION = 2
+CO_B_UPPER_LIMIT = 2
+CO_B_PRECISION = 3

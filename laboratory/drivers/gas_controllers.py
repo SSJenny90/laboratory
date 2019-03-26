@@ -1,16 +1,17 @@
 from laboratory.utils import loggers
 logger = loggers.lab(__name__)
 from laboratory import config
-from alicat import FlowController
+from alicat import FlowMeter
 import numpy as np
 import math
+import pprint
 
-class AlicatController(FlowController):
+class AlicatController(FlowMeter):
     """Driver for an individual Mass Flow Controller.
 
     .. note::
 
-        not called directly - access is from within :class:'~Drivers.MFC'
+        no need to instantiate directly - access is from within :class:'~Drivers.MFC'
 
     =============== ===========================================================
     Methods         message
@@ -25,62 +26,85 @@ class AlicatController(FlowController):
     reset           resets the device
     =============== ===========================================================
 
-    \*see FlowController for more methods
-    """
-    def __init__(self,port,address):
-        super(AlicatController,self).__init__(port,address)
+    :Example:
 
-    def get_all(self):
-        vals = [(self.massflow)]
-        vals.append(self.pressure)
-        vals.append(self.temperature)
-        vals.append(self.volumetric_flow)
-        vals.append(self.setpoint)
+    >>> from laboratory.drivers import instruments
+    >>> gas = instruments.connect()
+
+
+
+    """
+    def __init__(self,port,address,name,upper_limit,precision):
+        super(AlicatController,self).__init__(port,address)
+        self.name = name
+        self.maxtry = 5
+        self.precision = precision
+        self.upper_limit = upper_limit
+
+    def __str__(self):
+        output = {'name': self.name,
+                  'address':self.address,
+                  'open':self.open}
+        return '\n ' + pprint.pformat(output, indent=4, width=1)[1:]
+
+    def get(self):
+        vals = FlowMeter.get(self)
+        del vals['gas']
         return vals
 
-    def massflow(self,value=None):
-        """Get or set the massflow of the appropriate flowmeter
-
-        :param value: desired massflow value
-        :type value: float
+    def mass_flow(self):
+        """Get the massflow of the appropriate flowmeter
         """
-        self.control_point = 'flow'
-        if value: self.set_flow_rate(value)
-        else: return self.get()['mass_flow']
+        return self.get()['mass_flow']
 
-    def pressure(self,value=None):
-        """Get or set pressure of the appropriate flowmeter
-
-        :param value: desired massflow value
-        :type value: float
+    def pressure(self):
+        """Get the pressure of the appropriate flowmeter
         """
-        self.control_point = 'pressure'
-        if value: self.set_gas_pressure(value)
-        else: return self.get()['pressure']
+        return self.get()['pressure']
 
     def temperature(self):
         """Gets the temperature of the appropriate flowmeter
         :returns: gas temperature
         :rtype: float
         """
-        self.flush()
         return self.get()['temperature']
 
-    def volume_flow(self):
+    def volumetric_flow(self):
         """Gets the volumetric flow of the appropriate flowmeter"""
         return self.get()['volumetric_flow']
 
-    def setpoint(self):
-        """Gets the current set point of the appropriate flowmeter"""
-        return self.get()['setpoint']
+    def setpoint(self,setpoint=None):
+        """Gets the current set point of the appropriate flowmeter
+
+        :param setpoint: desired setpoint
+        :type setpoint: float
+        """
+        if setpoint > self.upper_limit:
+            return logger.error('The {name} gas controller has an upper limit of {limit} SCCM'.format(name=self.name,limit=self.upper_limit))
+
+        if setpoint is not None:
+            setpoint = round(setpoint,self.precision)
+            return self._command('{addr}S{setpoint}\r'.format(addr=self.address,
+                                                       setpoint=setpoint))
+        else:
+            return self.get()['setpoint']
 
     def reset(self):
-        """
-        sets the massflow to 0
-        """
-        self.set_massflow(0)
+        """Sets the massflow to 0 on the current controller"""
+        return self.setpoint(0)
 
-class MFC(AlicatController):
+    def _command(self,command):
+
+        for i in range(1,self.maxtry):
+            try:
+                self._write_and_read(command)
+                return True
+            except Exception as e:
+                if i ==self.maxtry:
+                    logger.error('Error: {}{}'.format(self.name,e))
+
+
+class GasControllers():
     """Global driver for all Mass Flow Controllers
 
     .. note::
@@ -112,49 +136,102 @@ class MFC(AlicatController):
 
     :Example:
 
-    >>> import Drivers
-    >>> mfc = Drivers.MFC()
-    >>> mfc.co2.get_massflow()
+    >>> from laboratory.drivers import instruments
+    >>> gas = instruments.connect()
+    >>> gas_input = {'co2':20,'co_a':15,'co_b':1.2,'h2':7.67}
+    >>> gas.set_all(**gas_input)
+    True
+    >>> gas.get_all()
+    {'co2': { 'pressure': 14.86,
+              'temperature': 24.83,
+              'volumetric_flow': 19.8,
+              'mass_flow': 20.0,
+              'setpoint': 20.0},
+     'co_a': {'pressure': 14.78,
+              'temperature': 24.69,
+              'volumetric_flow': 14.89,
+              'mass_flow': 15.0,
+              'setpoint': 15.0},
+     'co_b': {'pressure': 14.89,
+              'temperature': 24.34,
+              'volumetric_flow': 1.181,
+              'mass_flow': 1.2,
+              'setpoint': 1.2},
+     'h2': {  'pressure': 14.8,
+              'temperature': 23.9,
+              'volumetric_flow': 7.59,
+              'mass_flow': 7.67,
+              'setpoint': 7.67}}
+    >>> gas.co2.setpoint(12.57)
+    >>> gas.co2.get()   #return results from an individual controller
+    {'pressure': 14.83,
+     'temperature': 24.86,
+     'volumetric_flow': 12.57,
+     'mass_flow': 12.57,
+     'setpoint': 12.57}
     """
     def __init__(self):
-        self.maxtry = 5
         self.status = False
-        self.address = config.MFC_ADDRESS
-
+        self.port = config.MFC_ADDRESS
         self._connect()
 
     def __str__(self):
-        """String representation of the :class:`Drivers.LCR` object."""
-        return "{}.{}<id=0x{:x}\n\naddress = {}\nmaxtry = {}\nstatus = {}".format(
-            self.__module__,
-            self.__class__.__name__,
-            id(self),
-            self.address,
-            self.maxtry,
-            self.status
-            )
+        output = {'port': self.port,
+                  'maxtry': self.h2.maxtry,
+                  '  h2':
+                    {'name':self.h2.name,
+                     'address':self.h2.address,
+                     'open': self.h2.open},
+                  ' co2':
+                    {'name':self.co2.name,
+                     'address':self.co2.address,
+                     'open': self.co2.open},
+                  'co_a':
+                    {'name':self.co_a.name,
+                     'address':self.co_a.address,
+                     'open': self.co_a.open},
+                  'co_b':
+                    {'name':self.co_b.name,
+                     'address':self.co_b.address,
+                     'open': self.co_b.open},
+                  'serial': self.h2.connection.get_settings()}
+
+        return "\n    'status': {}".format(self.status) + '\n ' + pprint.pformat(output, indent=4, width=1)[1:]
 
     def _connect(self):
         """
         Connects to the mass flow controllers
         """
         try:
-            self.co2 = AlicatController(self.address,address='A')
-            self.co_a = AlicatController(self.address,address='B')
-            self.co_b = AlicatController(self.address,address='C')
-            self.h2 = AlicatController(self.address,address='D')
+            self.co2 = AlicatController(port=self.port, address='A', name='co2', upper_limit=config.CO2_UPPER_LIMIT, precision=config.CO2_PRECISION)
+            self.co_a = AlicatController(port=self.port, address='B', name='co_a', upper_limit=config.CO_A_UPPER_LIMIT, precision=config.CO_A_PRECISION)
+            self.co_b = AlicatController(port=self.port, address='C', name='co_b', upper_limit=config.CO_B_UPPER_LIMIT, precision=config.CO_B_PRECISION)
+            self.h2 = AlicatController(port=self.port, address='D', name='h2', upper_limit=config.H2_UPPER_LIMIT, precision=config.H2_PRECISION)
+
         except Exception as e:
-            logger.error('    MFC - FAILED (check log for details)')
+            logger.error('    GAS - FAILED (check log for details)')
             logger.debug(e)
             self.status = False
         else:
-            logger.info('    MFC - CONNECTED!')
+            logger.info('    GAS - CONNECTED!')
             self.all = [self.co2,self.co_a,self.co_b,self.h2]
             self.status = True
 
-    def reset(self):
+    def get_all(self):
+        self.flush_all()
+        return {gas.name: gas.get() for gas in self.all}
+
+    def set_all(self,co2,co_a,co_b,h2):
+        self.flush_all()
+        self.co2.setpoint(co2)
+        self.co_a.setpoint(co_a)
+        self.co_b.setpoint(co_b)
+        self.h2.setpoint(h2)
+
+    def reset_all(self):
         """Resets all connected flow controllers to 0 massflow"""
-        for controller in self.all: controller.set_massflow(0)
+        for controller in self.all:
+            controller.reset()
 
     def flush_all(self):
         """Flushes the input? buffer of all flow controllers"""
@@ -163,61 +240,6 @@ class MFC(AlicatController):
     def close_all(self):
         """Closes all flow controllers"""
         for controller in self.all: controller.close()
-
-    # def set_fugacity(self):
-    #     """
-    #     Sets the correct gas ratio for the given buffer. Percentage offset from a given buffer can be specified by 'offset'. Type of gas to be used for calculations is specified by gas_type.
-    #
-    #     :param buffer: buffer type (see table for input options)
-    #     :type buffer: str
-    #
-    #     :param offset: percentage offset from specified buffer
-    #     :type offset: float, int
-    #
-    #     :param gas_type: gas type to use for calculating ratio - can be either 'h2' or 'co'
-    #     :type pressure: str
-    #     """
-    #     logger.debug('Recalculating required co2:{:s} mix...'.format(gas_type))
-    #     vals = self.daq.get_temp()
-    #     temp = np.mean(vals[1:2])
-    #     fo2p = self.mfc.fo2_buffer(temp,buffer)
-    #
-    #     if gas_type == 'h2':
-    #         ratio = self.mfc.fugacity_h2(fo2p,temp)
-    #         h2 = 10
-    #         co2 = round(h2*ratio,2)
-    #
-    #         logger.debug('    {:.5f}:1 required to maintain +{:.2%} the "{:s}" buffer @ {:.1f} degrees Celsius'.format(ratio,offset,buffer,temp))
-    #         logger.debug('    Setting CO2 to {}'.format(co2))
-    #         self.save_data('delete_me',co2,gastype='co2')
-    #         # self.mfc.co2.set_massflow()
-    #         logger.debug('    Setting H2 to {:.2f}'.format(h2))
-    #         self.save_data('delete_me',h2,gastype='h2')
-    #         # self.mfc.h2.set_massflow()
-    #
-    #     elif gas_type == 'co':
-    #
-    #         ratio = self.mfc.fugacity_co(fo2p,temp)
-    #         logger.debug('    {:.5f}:1 required to maintain +{:.2%} the "{:s}" buffer @ {:.1f} degrees Celsius'.format(ratio,offset,buffer,temp))
-    #
-    #         co2 = 50    #sets 50 sccm as the optimal co2 flow rate
-    #         if co2/ratio >= 20:
-    #             co2 = round(20*ratio,2)
-    #
-    #         co = round(co2/ratio,3)
-    #         co_a = int(co2/ratio)
-    #         co_b = co - co_a
-    #         logger.debug('    Setting CO2 to {}'.format(co2))
-    #         # self.mfc.co2.set_massflow(co2)
-    #         self.save_data('delete_me',co2,gastype='co2')
-    #         logger.debug('    Setting CO_a = {0:.3f}'.format(co_a))
-    #         # self.mfc.co_a.set_massflow(co_a)
-    #         self.save_data('delete_me',co_a,gastype='co_a')
-    #         logger.debug('    Setting CO_b = {0:.3f}'.format(co_b))
-    #         # self.mfc.co_b.set_massflow(co_b)
-    #         self.save_data('delete_me',co_b,gastype='co_b')
-    #     else:
-    #         logger.error('Incorrect gas type specified!')
 
     def fugacity_co(self,fo2p, temp):
         """Calculates the ratio CO2/CO needed to maintain a constant oxygen fugacity at a given temperature.

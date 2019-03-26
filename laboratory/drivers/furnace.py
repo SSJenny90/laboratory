@@ -4,6 +4,9 @@ from laboratory import config
 import minimalmodbus
 minimalmodbus.BAUDRATE = 9600
 minimalmodbus.CLOSE_PORT_AFTER_EACH_CALL = True
+import pprint
+
+pp = pprint.PrettyPrinter(width=1,indent=4)
 
 class Furnace():
     """Driver for the Eurotherm 3216 Temperature Controller
@@ -36,7 +39,7 @@ class Furnace():
 
     def __init__(self,ports=None):
 
-        self.address = config.FURNACE_ADDRESS
+        self.port = config.FURNACE_ADDRESS
         self.maxtry = 10
         self.default_temp = config.RESET_TEMPERATURE
         self.status = False
@@ -44,16 +47,13 @@ class Furnace():
         self._connect(ports)
 
     def __str__(self):
-        """String representation of the :class:`Drivers.Furnace` object."""
-        return "{}.{}<id=0x{:x}\n\naddress = {}\nmaxtry = {}\nstatus = {}\ndefault_temp = {}".format(
-            self.__module__,
-            self.__class__.__name__,
-            id(self),
-            self.address,
-            self.maxtry,
-            self.status,
-            self.default_temp,
-            )
+        modbus_settings = {key: value for key,value in self.Ins.__dict__.items() if key != 'serial'}
+        output = {'furnace_settings':
+                        {'port': self.port,
+                         'maxtry': self.maxtry},
+                  'modbus_settings': modbus_settings,
+                  'serial_settings': self.Ins.serial.get_settings()}
+        return "\n    'status': {}".format(self.status) + '\n ' + pprint.pformat(output, indent=4, width=1)[1:]
 
     def _connect(self,ports):
         """
@@ -62,7 +62,7 @@ class Furnace():
         :param ports: names of available serial ports
         :type ports: list
         """
-        if not ports: ports = self.address
+        if not ports: ports = self.port
 
         if not isinstance(ports,list): ports = [ports]
 
@@ -96,7 +96,7 @@ class Furnace():
         logger.debug('Configuring furnace...')
         self.setpoint_2()
         self.setpoint_select('setpoint_1')
-        self.display()
+        self.display(2)
         self.timer_type('dwell')
         self.timer_end_type('transfer')
         self.timer_resolution('M:S')
@@ -127,7 +127,7 @@ class Furnace():
         else:
             logger.info('Incorrect argument for variable "display_type". Must be one of {}'.format(display_options))
 
-    def heating_rate(self,heat_rate=None,address=35):
+    def heating_rate(self,heat_rate=None,address=35,decimals=1):
         """If heat_rate is specified, this method sets the heating rate of the furnace.
         If no argument is passed it queries the current heating rate
 
@@ -143,7 +143,7 @@ class Furnace():
         >>> lab.furnace.heating_rate()
         5.0
         """
-        return self._command(heat_rate,address,'heating rate')
+        return self._command(heat_rate,address,'heating rate',decimals=decimals)
         # if heat_rate: return self._write(address,heat_rate,'Setting heating rate',decimals=1)
         # else: return self._read(address,'Getting heating rate',decimals=1)
 
@@ -152,7 +152,8 @@ class Furnace():
 
         :returns: Temperature in °C if succesful, else False
         """
-        return self._read(address,'Getting temperature')
+        self.indicated_temp = self._read(address,'Getting temperature')
+        return self.indicated_temp
 
     def reset_timer(self):
         """Resets the current timer and immediately restarts. Used in for loops to reset the timer during every iteration. This is a safety measure should the program lose communication with the furnace.
@@ -230,7 +231,7 @@ class Furnace():
             logger.info("Can't set timer to more than 100 minutes at the current resolution")
             return False
         else:
-            return self._command(address,total_seconds,'timer duration')
+            return self._command(total_seconds,address,'timer duration')
 
     def timer_end_type(self,selection=None,address=328):
         """Determines the behavior of the timer. The default configuration in this program is to dwell. If selection is specified, the timer end type will be set accordingly. If no argument is passed, it returns the current end type of the timer.
@@ -295,7 +296,8 @@ class Furnace():
         """
         #TODO fix this ^^^^
 
-        if status == 'end': raise ValueError('"end" is not a valid option for controlling the timer. Please refer to the furnace documentation.')
+        if status == 'end':
+            raise ValueError('"end" is not a valid option for controlling the timer. Please refer to the furnace documentation.')
         return self._command(status,address,'timer status',{'reset':0,'run':1,'hold':2,'end':3})
 
     def timer_type(self,selection=None,address=320):
@@ -333,13 +335,10 @@ class Furnace():
         :returns: True if succesful, False if not
         :rtype: Boolean
         '''
-        if value:
+        if value is not None:
             return self._write(address,value,'Setting address {}'.format(address))
         else:
             return self._read(address,'Getting address {}'.format(address))
-
-    def settings(self):
-        return self.Ins.serial.get_settings()
 
     def flush_input(self):
         logger.debug('Flushing furnace input')
@@ -349,16 +348,16 @@ class Furnace():
         logger.debug('Flushing furnace output')
         self.Ins.serial.reset_output_buffer()
 
-    def _command(self,value,address,message,options=None):
+    def _command(self,value,address,message,options=None,decimals=0):
         if value:
             if options is None:
-                return self._write(address,value,'Setting {}'.format(message))
+                return self._write(address,value,'Setting {}'.format(message),decimals=decimals)
             elif value in options:
                 return self._write(address,options[value],'Setting {}'.format(message))
             else:
                 logger.info('Incorrect argument. Must be one of {}'.format([key for key in options.keys()]))
         else:
-            output = self._read(address,'Getting {}'.format(message))
+            output = self._read(address,'Getting {}'.format(message),decimals=decimals)
             if options is None:
                 return output
             else:

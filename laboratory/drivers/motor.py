@@ -2,7 +2,7 @@ from laboratory.utils import loggers
 logger = loggers.lab(__name__)
 from laboratory import config
 import visa
-
+import pprint
 
 class Motor():
     """Driver for the motor controlling the linear stage
@@ -36,24 +36,29 @@ class Motor():
         self.maxtry = 5
         self.status = False
         self.home = 4800
-        self.address = config.MOTOR_ADDRESS
+        self.port = config.MOTOR_ADDRESS
         self.pulse_equiv = config.PITCH * config.STEP_ANGLE / (360*config.SUBDIVISION)
         self.max_xpos = config.MAXIMUM_STAGE_POSITION
 
         self._connect(ports)
 
     def __str__(self):
-        """String representation of the :class:`Drivers.Motor` object."""
-        return "{}.{}<id=0x{:x}\n\naddress = {}\nmaxtry = {}\n{}\nstatus = {}\nhome = {}\nmax_xpos = {}".format(
-            self.__module__,
-            self.__class__.__name__,
-            id(self),
-            self.address,
-            self.maxtry,
-            self.status,
-            self.home,
-            self.max_xpos
-            )
+        # """String representation of the :class:`Drivers.Motor` object."""
+        # return "{}.{}<id=0x{:x}\n\naddress = {}\nmaxtry = {}\n{}\nstatus = {}\nhome = {}\nmax_xpos = {}".format(
+        #     self.__module__,
+        #     self.__class__.__name__,
+        #     id(self),
+        #     self.port,
+        #     self.maxtry,
+        #     self.status,
+        #     self.home,
+        #     self.max_xpos
+        #     )
+
+        output = {'port': self.port,
+                  'maxtry': self.maxtry,
+                  'serial_settings': self.get_settings()}
+        return "\n    'status': {}".format(self.status) + '\n ' + pprint.pformat(output, indent=4, width=1)[1:]
 
     def _connect(self,ports):
         """
@@ -62,7 +67,7 @@ class Motor():
         :param ports: list of available ports
         :type ports: list, string
         """
-        if not ports: ports = self.address
+        if not ports: ports = self.port
 
         if not isinstance(ports,list):
             ports = [ports]
@@ -72,29 +77,38 @@ class Motor():
         for port in ports:
             if self.status:      #stop searching if the instrument has already been found
                 break
-            c=0
-            while c <= self.maxtry:
+
+            for i in range(1,self.maxtry):
                 try:
                     logger.debug('    Trying {}...'.format(port))
                     rm = visa.ResourceManager()
                     self.Ins = rm.open_resource(port)
-                    tmp = self.Ins.query_ascii_values(command,converter='s')
+                    tmp = self.Ins.query_ascii_values(command,converter='s')[0]
                 except Exception as e:
-                    if c >= self.maxtry:
+                    if i == self.maxtry:
                         logger.debug('    Trying {}... unsuccessful'.format(port))
                         logger.debug('    {}'.format(e))
                 else:
-                    if tmp[0] == '?R\rOK\n':
+                    if tmp == '?R\rOK\n':
                         self.status = True
                         logger.info('    MOT - CONNECTED!')
                         break
-                c=c+1
+
         if not self.status:
             logger.error('    MOT - FAILED (check log for details)')
 
     def center(self):
         """Moves stage to the absolute center"""
         return self.position(self.max_xpos/2)
+
+    def get_settings(self):
+        settings = ['baudrate','bytesize','parity','stopbits','timeout']
+        output = {'baudrate':self.Ins.baud_rate,
+                  'bytesize':self.Ins.data_bits,
+                  'parity':self.Ins.parity._name_,
+                  'stopbits':int(self.Ins.stop_bits._value_/10),
+                  'timeout':self.Ins.timeout,}
+        return output
 
     def move(self,displacement):
         """Moves the stage in the positive or negative direction

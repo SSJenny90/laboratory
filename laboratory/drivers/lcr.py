@@ -2,6 +2,7 @@ from laboratory.utils import loggers
 logger = loggers.lab(__name__)
 from laboratory import config
 import visa
+import pprint
 
 class LCR():
     """
@@ -29,28 +30,27 @@ class LCR():
 
     def __init__(self):
 
-        self.address = config.LCR_ADDRESS
+        self.port = config.LCR_ADDRESS
         self.maxtry = 5
         self.status = False
 
         self._connect()
 
+
     def __str__(self):
-        """String representation of the :class:`Drivers.LCR` object."""
-        return "{}.{}<id=0x{:x}\n\naddress = {}\nmaxtry = {}\n{}\nstatus = {}".format(
-            self.__module__,
-            self.__class__.__name__,
-            id(self),
-            self.address,
-            self.maxtry,
-            self.status
-            )
+        """String representation of the :class:`Drivers.Furnace` object."""
+        """String representation of the :class:`Drivers.Furnace` object."""
+        output = {'port': self.port,
+                  'maxtry': self.maxtry}
+        return "\n    'status': {}".format(self.status) + '\n ' + pprint.pformat(output, indent=4, width=1)[1:]
+
+
 
     def _connect(self):
         """Connects to the LCR meter"""
         try:
             rm = visa.ResourceManager() #used by pyvisa to connect to LCR and DAQ. Leave.
-            self.Ins = rm.open_resource(self.address)
+            self.Ins = rm.open_resource(self.port)
         except Exception as e:
             logger.error('    LCR - FAILED (check log for details)')
             logger.debug(e)
@@ -62,7 +62,9 @@ class LCR():
     def get_complexZ(self):
         """Collects complex impedance from the LCR meter"""
         self.trigger()
-        return self._read('FETCh?','Collecting impedance data',to_file=False)
+        line = self._read('FETCh?','Collecting impedance data',to_file=False)
+        return {key: float('nan') if value == 9.9e+37 else value for key,value in zip(['z','theta'],line)}
+
 
     def configure(self,freq):
         """Appropriately configures the LCR meter for measurements"""
