@@ -1,5 +1,6 @@
 from laboratory.utils import loggers
 logger = loggers.lab(__name__)
+from laboratory import config
 from pandas.api.types import is_numeric_dtype
 import numpy as np
 from datetime import datetime
@@ -57,15 +58,30 @@ def check_controlfile(controlfile):
 
     return True
 
-def find_indicated(temperature,default=True):
+def find_indicated(temperature):
     #from calibration experiment
-    furnace = np.array([400,500,600,700,800,900,1000])
-    daq = np.array([253.46,335.82,422.67,512,604.5,698.7,795.3])
-    A = np.vstack([daq,np.ones(len(daq))]).T
-    m,c = np.linalg.lstsq(A,furnace,rcond=None)[0]
+    data = config.OPEN_FURNACE_CORRECTION
 
-    if default: return np.around(np.multiply(m,temperature)+c,2) #return a furnace value for given temperature
-    else: return np.around(np.divide(temperature-c,m),2)    #return a daq value for given temperature
+    target = data['target']
+    indicated = data['indicated']
+    mean_temp = data['mean_temp']
+    popt = data['correction']
+    # popt = curve_fit(parabola, mean_temp[idx], indicated[idx])[0]
+
+    return np.around(np.multiply(popt[0],np.square(temperature)) + np.multiply(popt[1],temperature) + popt[2],2)
+
+
+    # furnace = np.array([400,500,600,700,800,900,1000])
+    # daq = np.array([253.46,335.82,422.67,512,604.5,698.7,795.3])
+    # A = np.vstack([daq,np.ones(len(daq))]).T
+    # m,c = np.linalg.lstsq(A,furnace,rcond=None)[0]
+    #
+    # if default:
+    #     #return a furnace value for a desired temperature
+    #     return np.around(np.multiply(m,temperature)+c,2)
+    # else:
+    #     #return a daq value for given temperature
+    #     return np.around(np.divide(temperature-c,m),2)
 
 def count_down(start,interval,time_remaining=1):
     """Controls the count down until next measurement cycle
