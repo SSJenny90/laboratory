@@ -49,3 +49,8 @@ CO_A_UPPER_LIMIT = 50
 CO_A_PRECISION = 2
 CO_B_UPPER_LIMIT = 2
 CO_B_PRECISION = 3
+
+#-------------------Calibrations files-------------------
+from laboratory.utils.data import _load_pkl
+
+OPEN_FURNACE_CORRECTION = _load_pkl('laboratory\\calibration\\open_furnace_correction.pkl')
