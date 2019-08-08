@@ -1,7 +1,7 @@
 from laboratory import config
 from laboratory.utils import loggers, notifications, plotting, data, utils
 logger = loggers.lab(__name__)
-from laboratory.drivers import instruments
+import drivers
 import os
 import time
 import sys
@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 from pprint import pprint
 
 plt.ion()
-
 
 class Setup():
     """
@@ -51,7 +50,7 @@ class Setup():
         logger.debug('-------------------------------------------')
         # self.plot = LabPlots()
         self._debug = debug
-        self.dlogger=None
+        self.dlogger = None
         self._delayed_start = None
         if filename is None:
             self.data = data.Data()
@@ -75,8 +74,8 @@ class Setup():
         return self._debug
 
     @debug.setter
-    def debug(self,bool):
-        if bool:
+    def debug(self,val):
+        if val:
             logger.handlers[1].setLevel('DEBUG')
         else:
             logger.handlers[1].setLevel('INFO')
@@ -168,11 +167,9 @@ class Setup():
         # iterate through control file until finished
         for i,step in self.controlfile.iterrows():
             logger.info('============================')
-
             logger.info('Step {}:'.format(i+1))
             finish_time = datetime.strftime(datetime.now() + timedelta(minutes=step.est_total_mins),'%H:%M %A, %b %d')
             logger.info('Estimated finish: {}'.format(finish_time))
-
             logger.info('============================')
 
             #set the required heating rate if a change is needed
@@ -199,44 +196,6 @@ class Setup():
 
         self.shut_down()
 
-    def _measurement_cycle(self,step):
-        """
-        This is the main measurement loop of the program. All data is accessed and saved from within this loop
-
-        :param step: a single row from the control file
-        """
-        self.furnace.timer_duration(minutes=3.5*step.interval)
-        while True:
-            #required to reset progress bar
-            self.count = 1
-
-            #reset the timer at the start of each loop
-            self.furnace.reset_timer()
-
-            self.daq.get_temp()
-            logger.debug('Collecting measurements @ {:.1f} degC...'.format( self.daq.mean_temp))
-
-            #get a suite of measurements
-            self.save_time()
-            self.get_stage_position()
-            self.get_thermopower(step.target_temp)
-            self.get_gas()
-            self.set_fugacity(step)
-            self.get_impedance()
-            self.backup()
-            self._progress_bar('Complete!')
-
-            #wait until the interval has expired before starting new measurements
-            utils.count_down(self.data.time[-1],step.interval)
-
-            #check to make sure everything is connected
-            if not self.device_status():
-                return False
-
-            #check to see if it's time to begin the next loop
-            if utils.break_measurement_cycle(step, self.furnace.indicated_temp, self.data.step_time[-1]):
-                return True
-
     def device_status(self,email_alert=False):
         """Checks the status of all devices. If desired, this function can send an email when something has become disconnected
 
@@ -257,7 +216,7 @@ class Setup():
 
     def reconnect(self):
         """Attempts to reconnect to any instruments that have been disconnected"""
-        instruments.reconnect(self)
+        drivers.reconnect(self)
 
     def load_instruments(self):
         """Loads all the laboratory instruments. Called automatically when calling Setup() without a filename specified.
@@ -266,7 +225,7 @@ class Setup():
         :rtype: instrument objects
         """
         logger.info('Establishing connection with instruments...')
-        self.lcr, self.daq, self.gas, self.furnace, self.motor = instruments.connect()
+        self.lcr, self.daq, self.gas, self.furnace, self.motor = drivers.connect()
         print(' ')
 
     def backup(self):
@@ -276,15 +235,15 @@ class Setup():
     def set_fugacity(self,step):
         """Sets the correct gas ratio for the given buffer. Percentage offset from a given buffer can be specified by 'offset'. Type of gas to be used for calculations is specified by gas_type.
 
-        :param buffer: buffer type (see table for input options)
-        :type buffer: str
+            :param buffer: buffer type (see table for input options)
+            :type buffer: str
 
-        :param offset: percentage offset from specified buffer
-        :type offset: float, int
+            :param offset: percentage offset from specified buffer
+            :type offset: float, int
 
-        :param gas_type: gas type to use for calculating ratio - can be either 'h2' or 'co'
-        :type pressure: str
-        """
+            :param gas_type: gas type to use for calculating ratio - can be either 'h2' or 'co'
+            :type pressure: str
+            """
         self._progress_bar('Calculating required co2:{} mix...'.format(step.fo2_gas))
         logger.debug('Calculating required co2:{} mix...'.format(step.fo2_gas))
         temp = self.daq.mean_temp
@@ -313,7 +272,7 @@ class Setup():
 
         self._log_data('F {} {} {}'.format(log_fugacity,ratio, step.offset))
         self.data.fugacity = self.data.fugacity.append( {'fugacity':log_fugacity,'ratio':ratio, 'offset':step.offset}, ignore_index=True)
-        self.gas.set_all(**gas)
+        # self.gas.set_all(**gas)
 
     def get_stage_position(self):
         self.data.stage_position.append(self.motor.position())
@@ -423,9 +382,10 @@ class Setup():
         """
         #TODO save some information about where to start the next file
         logger.critical("Shutting down the lab...")
-        # self.furnace.shutdown()
+        self.furnace.shutdown()
         self.daq.shutdown()
         self.lcr.shutdown()
+        self.gas.shutdown()
         logger.critical("success")
 
     def restart_from_backup(self):
@@ -434,6 +394,43 @@ class Setup():
         """
         #load the pickle file
         return
+
+    def _measurement_cycle(self,step):
+        """
+        This is the main measurement loop of the program. All data is accessed and saved from within this loop
+
+        :param step: a single row from the control file
+        """
+        self.furnace.timer_duration(minutes=3.5*step.interval)
+        while True:
+            #required to reset progress bar
+            self.count = 1
+
+            #reset the timer at the start of each loop
+            self.furnace.reset_timer()
+
+            #get a suite of measurements
+            self.daq.get_temp()
+            logger.debug('Collecting measurements @ {:.1f} degC...'.format(self.daq.mean_temp))
+            self.save_time()
+            self.get_stage_position()
+            self.get_thermopower(step.target_temp)
+            self.get_gas()
+            self.set_fugacity(step)
+            self.get_impedance()
+            self.backup()
+            self._progress_bar('Complete!')
+
+            #wait until the interval has expired before starting new measurements
+            utils.count_down(self.data.time[-1],step.interval)
+
+            #check to make sure everything is connected
+            if not self.device_status():
+                return False
+
+            #check to see if it's time to begin the next loop
+            if utils.break_measurement_cycle(step, self.furnace.indicated_temp, self.data.step_time[-1]):
+                return True
 
     def _progress_bar(self, message=None, decimals=0, bar_length=25):
         """Creates a terminal progress bar
@@ -499,7 +496,8 @@ class Setup():
 
         #add some useful columns to control file
         controlfile['previous_target'] = controlfile.target_temp.shift()
-        controlfile.loc[0,'previous_target'] = utils.find_indicated(self.furnace.setpoint_1(),False)
+        # controlfile.loc[0,'previous_target'] = utils.find_indicated(self.furnace.setpoint_1())
+        controlfile.loc[0,'previous_target'] = self.furnace.setpoint_1()
         controlfile['previous_heat_rate'] = controlfile.heat_rate.shift()
         controlfile.loc[0,'previous_heat_rate'] = self.furnace.heating_rate()
         controlfile['est_total_mins'] = np.abs((controlfile.target_temp - controlfile.previous_target)/controlfile.heat_rate + controlfile.hold_length * 60).astype(int)
@@ -508,6 +506,29 @@ class Setup():
 
         self.controlfile = controlfile
         return True
+
+
+
+def data_dict():
+    return {'thermo': { 'indicated':[],
+                    'target':[],
+                    'reference_temperature':[],
+                    'temp_1':[],
+                    'temp_2':[],
+                    'voltage':[],},
+            'gas': {'h2': [],
+                    'co_a': [],     # 0-50 SCCM
+                    'co_b': [],     # 0-2 SCCM
+                    'co2': [],},
+            'impedance': {  'impedance': [],
+                            'phase_angle': []},
+            'file_name': '',
+            'time': [],
+            'stage_position': [],
+            'fugacity': {   'fugacity': [],
+                            'ratio': [],
+                            'offset': []},}
+
 
 if __name__ == '__main__':
 

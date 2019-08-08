@@ -5,6 +5,28 @@ from datetime import datetime as dt
 import pandas as pd
 import pickle
 
+
+data = {   'thermo': { 'indicated':[],
+                    'target':[],
+                    'reference_temperature':[],
+                    'temp_1':[],
+                    'temp_2':[],
+                    'voltage':[],},
+            'gas': {'h2': [],
+                    'co_a': [],     # 0-50 SCCM
+                    'co_b': [],     # 0-2 SCCM
+                    'co2': [],},
+            'impedance': {  'impedance': [],
+                            'phase_angle': []},
+            'file_name': '',
+            'time': [],
+            'stage_position': [],
+            'fugacity': {   'fugacity': [],
+                            'ratio': [],
+                            'offset': []},
+}
+
+
 class Data():
     """Storage for all data collected during experiments. Data file are loaded into this object for processing and plotting
 
@@ -14,7 +36,7 @@ class Data():
     freq            array of frequencies for use by the LCR meter
     filename        name of the file being used
     time            times for each measurement
-    thermo          stroes thermopower data
+    thermo          stores thermopower data
     gas             stores gas and fugacity data
     temp            stores temperature data
     imp             stores impedance data
@@ -27,7 +49,6 @@ class Data():
     >>> print(lab.data.temp.indicated)
     [100,105,110,115,120]
     """
-
     def __init__(self,freq=None,filename=None):
 
         self.thermo = pd.DataFrame(columns=['indicated','target','tref','te1','te2','voltage'])
@@ -39,18 +60,6 @@ class Data():
         self.step_time = []
         self.fugacity = pd.DataFrame(columns=['fugacity','ratio','offset'])
         self.load_frequencies()
-
-    # --filename---------------------------------------
-    @property
-    def filename(self):
-        return self._filename
-
-    @filename.setter
-    def filename(self,fname):
-        if fname is not None:
-            if not isinstance(fname,str):
-                raise TypeError('data.filename must be a string')
-        self._filename = fname
 
     def __repr__(self):
         pd.set_option('display.max_rows', 5)
@@ -81,40 +90,6 @@ class Data():
             self.freq = np.around(np.linspace(min,max,n))
         else:
             return False
-
-    # def __add__(self,other):
-    #     if not np.array_equal(self.freq,other.freq):
-    #         raise Exception('Data object must use the same frequency values')
-    #         return
-    #
-    #     self.thermo = self.thermo + other.thermo
-    #     self.gas = self.gas + other.gas
-    #     self.temp = self.temp + other.temp
-    #     self.imp = self.imp + other.imp
-    #     self.filename = self.filename + '_a'
-    #     self.time.extend(other.time)
-    #     # self.xpos = self.time.extend(other.time)
-    #     # self.step_time = self.time.extend(other.time)
-    #     return self
-
-class Gas():
-    """Stores the seperate gas data under one roof
-
-    =============== ===========================================================
-    Attributes      Description
-    =============== ===========================================================
-    h2              hydrogen data
-    co2             carbon dioxide data
-    co_a            carbon monoxide coarse control data [0-50SCCM]
-    co_b            carbon monoxide fine control data [0-2SCCM]
-    =============== ===========================================================
-    """
-    def __init__(self):
-
-        self.h2 = pd.DataFrame()
-        self.co2 = pd.DataFrame()
-        self.co_a = pd.DataFrame()
-        self.co_b = pd.DataFrame()
 
 def load_data(filename):
     if filename.endswith('.txt'):

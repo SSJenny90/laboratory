@@ -119,11 +119,12 @@ def break_measurement_cycle(step,indicated,cycle_start):
     #     return True
     time_elapsed = (datetime.now()-cycle_start).total_seconds()/60/60
     #if T is increasing, break when Tind exceeds target
-    if step.target_temp >= step.previous_target and indicated >= step.target_temp:
+    # import pdb;pdb.set_trace()
+    if find_indicated(step.target_temp) >= step.previous_target and indicated >= step.target_temp:
         if time_elapsed >= step.hold_length:
             return True
     #if temp is decreasing, indicated rarely drops below the target - hence the + 5
-    elif step.target_temp < step.previous_target and indicated < step.target_temp+5:
+    elif find_indicated(step.target_temp) < step.previous_target and indicated < step.target_temp+5:
         if time_elapsed >= step.hold_length:
             return True
 
@@ -136,6 +137,7 @@ def print_df(df):
     print('Control File:\n')
     column_names = ['target_temp', 'hold_length', 'heat_rate', 'interval', 'buffer', 'offset', 'fo2_gas', 'est_total_mins']
     column_alias = ['Target [C]', 'Hold [hrs]', 'Heat rate [C/min]', 'Interval', 'Buffer', 'Offset', 'Gas', 'Est. mins']
+    # print(df.to_string())
     print(df.to_string(columns=column_names,header=column_alias,index=False))
     print(' ')
 

@@ -94,7 +94,7 @@ class LabPlots():
         fig = plt.figure()
         ax = fig.add_subplot(111,**kwargs)
 
-        ax.plot(self.time_elapsed,thermo.tref,'r-')
+        # ax.plot(self.time_elapsed,thermo.tref,'r-')
         ax.plot(self.time_elapsed,thermo.te1,'b.',label='Te1')
         ax.plot(self.time_elapsed,thermo.te2,'g.',label='Te2')
         ax.step(self.time_elapsed,thermo.target,'y',linestyle='--',label='Target temperature')
