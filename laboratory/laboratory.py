@@ -1,7 +1,9 @@
-from laboratory import config
+from . import config
+from . import drivers
 from laboratory.utils import loggers, notifications, plotting, data, utils
+from laboratory.utils.exceptions import SetupError
+from laboratory.widgets import CountdownTimer, ProgressBar 
 logger = loggers.lab(__name__)
-import drivers
 import os
 import time
 import sys
@@ -11,12 +13,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from pprint import pprint
 
+
 plt.ion()
 
 class Setup():
-    """
+    """ 
     Sets up the laboratory
-
+ 
     =============== ===========================================================
     Attributes      Description
     =============== ===========================================================
@@ -48,26 +51,26 @@ class Setup():
     """
     def __init__(self,filename=None,debug=False):
         logger.debug('-------------------------------------------')
-        # self.plot = LabPlots()
         self._debug = debug
         self.dlogger = None
         self._delayed_start = None
         if filename is None:
-            self.data = data.Data()
+            self.data = data_dict()
+            # self.data = data.Data()
             self.load_instruments()
         else:
             self.load_data(filename)
             self.plot = plotting.LabPlots(self.data)
 
-    def __str__(self):
+    # def __str__(self):
 
-        data = '\nData: {} data points\n'.format(len(self.data.time))
-        furnace = '\nFurnace: {}\n'.format(self.furnace)
-        lcr = '\nLCR: {}\n'.format(self.lcr)
-        daq = '\nDAQ: {}\n'.format(self.daq)
-        motor = '\nMotor: {}\n'.format(self.motor)
-        gas = '\nGas: {}\n'.format(self.gas)
-        return data + lcr + daq + furnace + motor + gas
+    #     data = '\nData: {} data points\n'.format(len(self.data.time))
+    #     furnace = '\nFurnace: {}\n'.format(self.furnace)
+    #     lcr = '\nLCR: {}\n'.format(self.lcr)
+    #     daq = '\nDAQ: {}\n'.format(self.daq)
+    #     motor = '\nMotor: {}\n'.format(self.motor)
+    #     gas = '\nGas: {}\n'.format(self.gas)
+    #     return data + lcr + daq + furnace + motor + gas
 
     @property
     def debug(self):
@@ -90,7 +93,6 @@ class Setup():
         >>> lab = Laboratory.Setup()
         >>> lab.delayed_start = '0900' #start at 9am the following day
         >>> lab.run('some_controlfile')
-
 
         """
         return self._delayed_start
@@ -153,10 +155,9 @@ class Setup():
         :param controlfile: path to control file
         :type controlfile: str
         """
-        #make sure we have a fresh data object before starting
-        self.data = data.Data()
+        self.data = data_dict()
 
-        if not self._preflight_checklist(controlfile): return 'Couldn\'t start the experiment'
+        self.setup(controlfile):
 
         if self.delayed_start:
             logger.info('Experiment will start at {}'.format(datetime.strftime(self.delayed_start,'%H:%M on %b %d ')))
@@ -173,10 +174,10 @@ class Setup():
             logger.info('============================')
 
             #set the required heating rate if a change is needed
-            if step.heat_rate - step.previous_heat_rate is not 0:
+            if step.heat_rate - step.previous_heat_rate != 0:
                 self.furnace.heating_rate(step.heat_rate)
             #set the required temperature if a change is needed
-            if step.target_temp - step.previous_target is not 0:
+            if step.target_temp - step.previous_target != 0:
                 self.furnace.setpoint_1(utils.find_indicated(step.target_temp))
             print('')
 
@@ -229,7 +230,7 @@ class Setup():
         print(' ')
 
     def backup(self):
-        self._progress_bar('Saving backup file...')
+        self.progress_bar.update('Saving backup file...')
         data.save_obj(self.data,self.data.filename)
 
     def set_fugacity(self,step):
@@ -244,7 +245,7 @@ class Setup():
             :param gas_type: gas type to use for calculating ratio - can be either 'h2' or 'co'
             :type pressure: str
             """
-        self._progress_bar('Calculating required co2:{} mix...'.format(step.fo2_gas))
+        self.progress_bar.update('Calculating required co2:{} mix...'.format(step.fo2_gas))
         logger.debug('Calculating required co2:{} mix...'.format(step.fo2_gas))
         temp = self.daq.mean_temp
         log_fugacity = self.gas.fo2_buffer(temp,step.buffer) + step.offset
@@ -287,7 +288,7 @@ class Setup():
         :returns: [mass_flow, pressure, temperature, volumetric_flow, setpoint]
         :rtype: list
         """
-        self._progress_bar('Collecting gas data...')
+        self.progress_bar.update('Collecting gas data...')
         logger.debug('Collecting gas data...')
         vals = self.gas.get_all()
 
@@ -310,7 +311,7 @@ class Setup():
         :type target: float
         """
         logger.debug('Collecting temperature data from furnace...')
-        self._progress_bar('Collecting furnace data...')
+        self.progress_bar.update('Collecting furnace data...')
         temp = self.furnace.indicated()
         return {'target':target,'indicated':temp}
 
@@ -320,7 +321,7 @@ class Setup():
         :returns: [thermistor, te1, te2, voltage]
         :rtype: list
         """
-        self._progress_bar('Collecting thermopower data...')
+        self.progress_bar.update('Collecting thermopower data...')
         logger.debug('Collecting thermopower data...')
         thermo = self.daq.get_thermopower()
 
@@ -336,13 +337,13 @@ class Setup():
     def get_impedance(self):
         """Sets up the lcr meter and retrieves complex impedance data at all frequencies specified by Data.freq. Data is saved in Data.imp.z and Data.imp.theta as a list of length Data.freq. Values are also saved to the data file.
         """
-        self._progress_bar('Collecting impedance data...')
+        self.progress_bar.update('Collecting impedance data...')
         logger.debug('Collecting impedance data from LCR meter...')
         self.daq.toggle_switch('impedance')
         z,theta = [],[]
 
         for i,f in enumerate(self.data.freq):
-            self._progress_bar('Collecting impedance data...')
+            self.progress_bar.update('Collecting impedance data...')
 
             #return a single line for each frequency value
             line = self.lcr.get_complexZ()
@@ -401,62 +402,37 @@ class Setup():
 
         :param step: a single row from the control file
         """
+ 
         self.furnace.timer_duration(minutes=3.5*step.interval)
         while True:
-            #required to reset progress bar
-            self.count = 1
-
-            #reset the timer at the start of each loop
+            self.progress_bar = ProgressBar(length=6+len(self.data.freq), display=self.debug)
             self.furnace.reset_timer()
 
             #get a suite of measurements
-            self.daq.get_temp()
-            logger.debug('Collecting measurements @ {:.1f} degC...'.format(self.daq.mean_temp))
-            self.save_time()
+            self._begin()
             self.get_stage_position()
             self.get_thermopower(step.target_temp)
             self.get_gas()
             self.set_fugacity(step)
             self.get_impedance()
             self.backup()
-            self._progress_bar('Complete!')
 
-            #wait until the interval has expired before starting new measurements
-            utils.count_down(self.data.time[-1],step.interval)
+            CountdownTimer(display=self.debug).start({'minutes':step.interval},self.data['time'][-1], message='Next measurement in...')
 
             #check to make sure everything is connected
             if not self.device_status():
-                return False
+                return
 
             #check to see if it's time to begin the next loop
             if utils.break_measurement_cycle(step, self.furnace.indicated_temp, self.data.step_time[-1]):
                 return True
 
-    def _progress_bar(self, message=None, decimals=0, bar_length=25):
-        """Creates a terminal progress bar
-
-        :param iteration: iteration number
-        :type controlfile: int/float
-
-        :param message: message to be displayed on the right of the progress bar
-        :type message: str
-        """
-        iteration=self.count
-        n = 7+len(self.data.freq)
-
-        if self.debug: return   #don't display progress bar when in debugging mode
-
-        str_format = "{0:." + str(decimals) + "f}"
-        percentage = str_format.format(100 * (iteration / float(n)))
-        filled_length = int(round(bar_length * iteration / float(n)))
-        bar = '#' * filled_length + '-' * (bar_length - filled_length)
-
-        sys.stdout.write('\r@{:0.1f}C |{}| {}{} - {}             '.format(self.daq.mean_temp,bar, percentage, '%',message))
-
-        if iteration == n:
-            sys.stdout.write('')
-        sys.stdout.flush()
-        self.count += 1
+    def _begin(self):
+        self.daq.get_temp()
+        temp_str = '{:0.1f}'.format(self.daq.mean_temp)
+        logger.debug('Collecting measurements @ {} degC...'.format(temp_str))
+        self.progress_bar.pre_message = '@{}C'.format(temp_str)
+        self.save_time()
 
     def _log_data(self,message,i=0):
         if not self.dlogger:
@@ -466,37 +442,33 @@ class Setup():
                 logger.debug('\tSaving data to file...')
             self.dlogger.critical(message)
 
-    def _preflight_checklist(self,controlfile):
+    def setup(self,controlfile):
         """Conducts necessary checks before running an experiment abs
 
         :param controlfile: name of control file for the experiment
         :type controlfile: string
         """
-        if not controlfile:  #check to make sure a control file has been specified
-            logger.error('You must select a valid control file.')
-            return False
+        if not controlfile:
+            raise SetupError('You must specify a valid control file!')
         else:
             controlfile = pd.read_excel(controlfile,header=1)
 
         if not utils.check_controlfile(controlfile):
-            logger.error('Incorrect control file format! Check log file for more details')
-            return False
+            raise SetupError('Incorrect control file format!')
 
         if self.data.freq is None:
-            logger.error('No frequencies have been selected for measurement')
-            return False
+            raise SetupError('No frequencies have been selected for measurement')
 
         #set up the data logger
         self.dlogger = loggers.data()
         self.dlogger.critical('frequencies: {}\n'.format(self.data.freq.tolist()))
-        self.data.filename = self.dlogger.handlers[0].baseFilename
+        self.data['filename'] = self.dlogger.handlers[0].baseFilename
 
         #configure instruments
         self.lcr.configure(self.data.freq)
 
         #add some useful columns to control file
         controlfile['previous_target'] = controlfile.target_temp.shift()
-        # controlfile.loc[0,'previous_target'] = utils.find_indicated(self.furnace.setpoint_1())
         controlfile.loc[0,'previous_target'] = self.furnace.setpoint_1()
         controlfile['previous_heat_rate'] = controlfile.heat_rate.shift()
         controlfile.loc[0,'previous_heat_rate'] = self.furnace.heating_rate()
@@ -505,29 +477,55 @@ class Setup():
         utils.print_df(controlfile)
 
         self.controlfile = controlfile
-        return True
-
-
 
 def data_dict():
-    return {'thermo': { 'indicated':[],
-                    'target':[],
-                    'reference_temperature':[],
-                    'temp_1':[],
-                    'temp_2':[],
-                    'voltage':[],},
-            'gas': {'h2': [],
-                    'co_a': [],     # 0-50 SCCM
-                    'co_b': [],     # 0-2 SCCM
-                    'co2': [],},
-            'impedance': {  'impedance': [],
-                            'phase_angle': []},
+    return {'furnace': {
+                'indicated':[],
+                'target':[],},
+            'daq': {
+                'reference':[],
+                'thermo_1':[],
+                'thermo_2':[],
+                'voltage':[]},
+            'motor': {
+                'position': []},
+            'gas': {
+                'h2': [],
+                'co_a': [],     # 0-50 SCCM
+                'co_b': [],     # 0-2 SCCM
+                'co2': []},
+            'lcr': {
+                'impedance': [],
+                'phase_angle': []},
             'file_name': '',
             'time': [],
-            'stage_position': [],
             'fugacity': {   'fugacity': [],
                             'ratio': [],
                             'offset': []},}
+
+# def data_dict():
+#     return {'thermo': { 'indicated':[],
+#                     'target':[],
+#                     'reference_temperature':[],
+#                     'temp_1':[],
+#                     'temp_2':[],
+#                     'voltage':[],},
+#             'gas': {'h2': [],
+#                     'co_a': [],     # 0-50 SCCM
+#                     'co_b': [],     # 0-2 SCCM
+#                     'co2': [],},
+#             'impedance': {  'impedance': [],
+#                             'phase_angle': []},
+#             'file_name': '',
+#             'time': [],
+#             'stage_position': [],
+#             'fugacity': {   'fugacity': [],
+#                             'ratio': [],
+#                             'offset': []},}
+
+
+
+    
 
 
 if __name__ == '__main__':
