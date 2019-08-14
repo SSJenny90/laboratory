@@ -1,6 +1,7 @@
 from laboratory.utils import loggers
+from laboratory.utils.exceptions import InstrumentError,InstrumentConnectionError, InstrumentCommunicationError
 logger = loggers.lab(__name__)
-from laboratory import config
+from . import config
 import visa
 import pprint
 import minimalmodbus
@@ -10,61 +11,90 @@ pp = pprint.PrettyPrinter(width=1,indent=4)
 from alicat import FlowMeter
 import math
 
-class LCR():
-    """
-    Driver for the E4980A Precision LCR Meter, 20 Hz to 2 MHz
+class USBSerialInstrument():
+    """Base class for instruments that connect via USB"""
 
-    =============== ===========================================================
-    Attributes      message
-    =============== ===========================================================
-    maxtry          max number to attempt command
-    status          whether the instrument is connected
-    address         port name
-    =============== ===========================================================
-
-    =============== ===========================================================
-    Methods         message
-    =============== ===========================================================
-    connect         attempt to connect to the LCR meter
-    configure       configures device for measurements
-    write_freq      transfers desired frequencies to the LCR meter
-    trigger         gets impedance for one specified frequency
-    get_complexZ    retrieves complex impedance from the device
-    reset           resets the device
-    =============== ===========================================================
-    """
-
-    def __init__(self):
-
-        self.port = config.LCR_ADDRESS
-        self.maxtry = 5
-        self.status = False
-        self._connect()
-
-    def __str__(self):
-        """String representation of the :class:`Drivers.Furnace` object."""
-        """String representation of the :class:`Drivers.Furnace` object."""
-        output = {'port': self.port,
-                  'maxtry': self.maxtry}
-        return "\n    'status': {}".format(self.status) + '\n ' + pprint.pformat(output, indent=4, width=1)[1:]
-
-    def _connect(self):
-        """Connects to the LCR meter"""
+    def __init__(self, port):
         try:
-            rm = visa.ResourceManager() #used by pyvisa to connect to LCR and DAQ. Leave.
-            self.Ins = rm.open_resource(self.port)
-        except Exception as e:
-            logger.error('    LCR - FAILED (check log for details)')
+            self.device = visa.ResourceManager().open_resource(port)
+        except visa.VisaIOError as e:
             logger.debug(e)
             self.status = False
+            raise InstrumentConnectionError('Could not connect to the requested device!')
         else:
-            logger.info('    LCR - CONNECTED!')
+            logger.info('Connected!')
             self.status = True
+
+    def __str__(self):
+        return '\n'.join([key+": "+str(val) for key,val in self.__dict__.items()])
+
+    def read(self,command,message,to_file=True):
+        for i in range(1,config.GLOBAL_MAXTRY):
+            try:
+                if to_file: logger.debug('\t{}...'.format(message))
+                return self.device.query_ascii_values(command)
+            except Exception as e:
+                if i >= config.GLOBAL_MAXTRY:
+                    logger.error('\tError: "{}" failed! Check log for details'.format(message))
+                    logger.debug('Error message: {}'.format(e))
+                    return False
+
+    def write(self,command,message,val='\b\b\b  ',to_file=True):
+        for i in range(1,config.GLOBAL_MAXTRY):
+            try:
+                if to_file: logger.debug('\t{} to {}'.format(message,val))
+                self.device.write(command)         #sets format to ascii
+                return True
+            except Exception as e:
+                if i >= config.GLOBAL_MAXTRY:
+                    logger.error('\tError: "{}" failed! Check log for details'.format(message))
+                    logger.debug('Error message: {}'.format(e))
+                    return False
+
+    def read_string(self,command,message,to_file=True):
+        for i in range(1,config.GLOBAL_MAXTRY):
+            try:
+                if to_file: logger.debug('\t{}...'.format(message))
+                return self.device.query(command).rstrip()
+            except Exception as e:
+                if i >= config.GLOBAL_MAXTRY:
+                    logger.error('\tError: "{}" failed! Check log for details'.format(message))
+                    logger.debug('Error message: {}'.format(e))
+                    return False
+
+    def reset(self):
+        """Resets the LCR meter"""
+        return self.write('*RST;*CLS','Resetting device')
+
+class LCR(USBSerialInstrument):
+    """Driver for the E4980A Precision LCR Meter, 20 Hz to 2 MHz
+
+        =============== ===========================================================
+        Attribute       Description
+        =============== ===========================================================
+        status          whether the instrument is connected
+        device          port name
+        =============== ===========================================================
+
+        =============== ===========================================================
+        Method          Description
+        =============== ===========================================================
+        connect         attempt to connect to the LCR meter
+        configure       configures device for measurements
+        write_freq      transfers desired frequencies to the LCR meter
+        trigger         gets impedance for one specified frequency
+        get_complexZ    retrieves complex impedance from the device
+        reset           resets the device
+        =============== ===========================================================
+        """
+
+    def __init__(self):
+        super().__init__(port=config.LCR_ADDRESS)
 
     def get_complex_impedance(self):
         """Collects complex impedance from the LCR meter"""
         self.trigger()
-        line = self._read('FETCh?','Collecting impedance data',to_file=False)
+        line = self.read('FETCh?','Collecting impedance data',to_file=False)
         return {key: float('nan') if value == 9.9e+37 else value for key,value in zip(['z','theta'],line)}
 
     def configure(self,freq):
@@ -82,7 +112,7 @@ class LCR():
 
     def trigger(self):
         """Triggers the next measurement"""
-        return self._write('TRIG:IMM','Trigger next measurement',to_file=False)
+        return self.write('TRIG:IMM','Trigger next measurement',to_file=False)
 
     def write_freq(self,freq):
         """Writes the desired frequencies to the LCR meter
@@ -91,35 +121,31 @@ class LCR():
         :type freq: array like
         """
         freq_str = ','.join('{}'.format(n) for n in freq)
-        return self._write(':LIST:FREQ ' + freq_str,'Loading frequencies')
-
-    def reset(self):
-        """Resets the LCR meter"""
-        return self._write('*RST;*CLS','Resetting device')
+        return self.write(':LIST:FREQ ' + freq_str,'Loading frequencies')
 
     def _set_format(self,mode='ascii'):
         """Sets the format type of the LCR meter. Defaults to ascii. TODO - allow for other format types"""
-        return self._write('FORM:ASC:LONG ON',"Setting format",mode)
+        return self.write('FORM:ASC:LONG ON',"Setting format",mode)
 
     def function(self,mode='impedance'):
         """Sets up the LCR meter for complex impedance measurements"""
-        return self._write('FUNC:IMP ZTR',"Setting measurement type",mode)
+        return self.write('FUNC:IMP ZTR',"Setting measurement type",mode)
 
     def _set_continuous(self,mode='ON'):
         """Allows the LCR meter to auto change state from idle to 'wait for trigger'"""
-        return self._write('INIT:CONT ON','Setting continuous',mode)
+        return self.write('INIT:CONT ON','Setting continuous',mode)
 
     def list_mode(self,mode=None):
         """Instructs LCR meter to take a single measurement per trigger"""
-        # return self._write('LIST:MODE STEP',"Setting measurement",mode)
+        # return self.write('LIST:MODE STEP',"Setting measurement",mode)
         mode_options = {'step':'STEP','sequence':'SEQ'}
         if mode:
             if mode in mode_options:
-                return self._write('LIST:MODE {}'.format(mode_options[mode]),'Setting list mode',mode)
+                return self.write('LIST:MODE {}'.format(mode_options[mode]),'Setting list mode',mode)
             else:
                 logger.info('Unsupported argument for variable "mode"')
         else:
-            mode = self._read_string('LIST:MODE?','Getting list mode')
+            mode = self.read_string('LIST:MODE?','Getting list mode')
             for key,value in mode_options.items():
                 if value == mode: return key
 
@@ -128,145 +154,66 @@ class LCR():
         mode_options = {'measurement':'MEAS','list':'LIST'}
         if mode:
             if mode in mode_options:
-                return self._write('DISP:PAGE {}'.format(mode_options[mode]),'Setting page display',mode)
+                return self.write('DISP:PAGE {}'.format(mode_options[mode]),'Setting page display',mode)
             else:
                 logger.info('Unsupported argument for variable "mode"')
         else:
-            mode = self._read_string('DISP:PAGE?','Getting page display')
+            mode = self.read_string('DISP:PAGE?','Getting page display')
             for key,value in mode_options.items():
                 if value == mode: return key
 
     def _set_source(self,mode='remote'):
         """Sets up the LCR meter to expect a trigger from a remote source"""
-        return self._write('TRIG:SOUR BUS','Setting trigger',mode)
-
-    def _write(self,command,message,val='\b\b\b  ',to_file=True):
-        c=0
-        while c <= self.maxtry:
-            try:
-                if to_file: logger.debug('\t{} to {}'.format(message,val))
-                self.Ins.write(command)         #sets format to ascii
-                return True
-            except Exception as e:
-                if c >= self.maxtry:
-                    logger.error('\tError: "{}" failed! Check log for details'.format(message))
-                    logger.debug('Error message: {}'.format(e))
-                    return False
-            c=c+1
-
-    def _read(self,command,message,to_file=True):
-        c=0
-        while c <= self.maxtry:
-            try:
-                if to_file: logger.debug('\t{}...'.format(message))
-                vals = self.Ins.query_ascii_values(command)
-                return vals
-            except Exception as e:
-                if c >= self.maxtry:
-                    logger.error('\tError: "{}" failed! Check log for details'.format(message))
-                    logger.debug('Error message: {}'.format(e))
-                    return False
-
-            c=c+1
-
-    def _read_string(self,command,message,to_file=True):
-        c=0
-        while c <= self.maxtry:
-            try:
-                if to_file: logger.debug('\t{}...'.format(message))
-                vals = self.Ins.query(command).rstrip()
-                return vals
-            except Exception as e:
-                if c >= self.maxtry:
-                    logger.error('\tError: "{}" failed! Check log for details'.format(message))
-                    logger.debug('Error message: {}'.format(e))
-                    return False
-            c=c+1
+        return self.write('TRIG:SOUR BUS','Setting trigger',mode)
 
     def shutdown(self):
         """Resets the LCR meter and closes the serial port"""
         self.reset()
-        # self.Ins.close()
         logger.critical('The LCR meter has been shutdown and port closed')
+            
+class DAQ(USBSerialInstrument):
+    """Driver for the 34970A Data Acquisition / Data Logger Switch Unit
 
-class DAQ():
-    """
-    Driver for the 34970A Data Acquisition / Data Logger Switch Unit
+        ============== ======================================================
+        Attributes      message
+        ============== ======================================================
+        maxtry          max number to attempt command
+        status          whether the instrument is connected
+        therm           specifies type of thermistor
+        tref            '101' - channel for thermistor
+        te1             '104' - channel for electrode 1
+        te2             '105' - channel for electrode 2
+        volt            '103' - channel for voltage measurements
+        switch          '205','206' - channels for switch between LCR and temp measurements
+        address         computer port address
+        ============== ======================================================
 
-    ============== ======================================================
-    Attributes      message
-    ============== ======================================================
-    maxtry          max number to attempt command
-    status          whether the instrument is connected
-    therm           specifies type of thermistor
-    tref            '101' - channel for thermistor
-    te1             '104' - channel for electrode 1
-    te2             '105' - channel for electrode 2
-    volt            '103' - channel for voltage measurements
-    switch          '205','206' - channels for switch between LCR and temp measurements
-    address         computer port address
-    ============== ======================================================
+        =============== ===========================================================
+        Methods         message
+        =============== ===========================================================
+        connect         attempt to connect to the LCR meter
+        configure       configures device for measurements
+        get_temp        gets temperature from te1,te2 and tref
+        get voltage     gets voltage measurement
+        read_errors     reads errors stored in the DAQ
+        reset           resets the device
+        shut_down       shuts down the device
+        toggle_switch   switches configuration between temp and voltage
+        =============== ===========================================================
 
-    =============== ===========================================================
-    Methods         message
-    =============== ===========================================================
-    connect         attempt to connect to the LCR meter
-    configure       configures device for measurements
-    get_temp        gets temperature from te1,te2 and tref
-    get voltage     gets voltage measurement
-    read_errors     reads errors stored in the DAQ
-    reset           resets the device
-    shut_down       shuts down the device
-    toggle_switch   switches configuration between temp and voltage
-    =============== ===========================================================
+        .. note::
 
-    .. note::
+            do not change class attributes unless the physical wiring has been changed within the DAQ
+        """
+    #these attributes must only be changed if the physical wiring has been changed. if required, change values in the config.py file
+    tref = config.REFERENCE_TEMPERATURE
+    te1 = config.ELECTRODE_1
+    te2 = config.ELECTRODE_2
+    volt = config.VOLTAGE
+    switch = config.SWITCH
 
-        do not change class attributes unless the physical wiring has been changed within the DAQ
-    """
     def __init__(self):
-        #these attributes must only be changed if the physical wiring has been changed. if required, change values in the config.py file
-        self.tref = config.REFERENCE_TEMPERATURE
-        self.te1 = config.ELECTRODE_1
-        self.te2 = config.ELECTRODE_2
-        self.volt = config.VOLTAGE
-        self.switch = config.SWITCH
-        self.therm = config.THERMISTOR_OHMS
-        self.port = config.DAQ_ADDRESS
-        self.temp_integration = config.TEMPERATURE_INTEGRATION_TIME
-        self.volt_integration = config.VOLTAGE_INTEGRATION_TIME
-
-        self.maxtry = 5
-        self.status = False
-        self.connect()
-
-    def __str__(self):
-        """Prints info about the DAQ"""
-        output = {'port': self.port,
-                  'maxtry': self.maxtry,
-                  'thermistor': self.therm,
-                  'channels':
-                  {'reference temperature': self.tref,
-                  'electrode 1':self.te1,
-                  'electrode 2': self.te2,
-                  'voltage': self.volt,
-                  'switch':self.switch,}
-             }
-        return "\n    'status': {}".format(self.status) + '\n ' + pprint.pformat(output, indent=4, width=1)[1:]
-
-    def connect(self):
-        """Connects to the DAQ"""
-        try:
-            rm = visa.ResourceManager() #used by pyvisa to connect to LCR and DAQ. Leave.
-            self.Ins = rm.open_resource(self.port)
-        except Exception as e:
-            logger.error('    DAQ - FAILED (check log for details)')
-            logger.debug(e)
-            self.status = False
-        else:
-            logger.info('    DAQ - CONNECTED!')
-            self.configure()
-            self.status = True
+        super().__init__(port=config.DAQ_ADDRESS)
 
     def configure(self):
         """Configures the DAQ according to the current wiring"""
@@ -287,7 +234,7 @@ class DAQ():
         :rtype: list of floats (degrees Celsius)
         """
         command = 'ROUT:SCAN (@{},{},{})'.format(self.tref,self.te1,self.te2)
-        vals = self._read(command,'Getting temperature data')
+        vals = self.read(command,'Getting temperature data')
         self.mean_temp = (vals[1]+vals[2])/2
         return vals
 
@@ -298,19 +245,13 @@ class DAQ():
         :rtype: float
         """
         command = 'ROUT:SCAN (@{})'.format(self.volt)
-        return self._read(command,'Getting voltage data')[0]
+        return self.read(command,'Getting voltage data')[0]
 
     def get_thermopower(self):
         """Collects both temperature and voltage data and returns a list"""
         temp = self.get_temp()
         voltage = self.get_voltage()
         return {'tref':temp[0],'te1':temp[1],'te2':temp[2],'voltage':voltage}
-
-    def reset(self):
-        '''Resets the device'''
-        self._write('*RST','Resetting DAQ')
-        self._write('*CLS','Clearing DAQ')
-        self._write('ROUT:CLOS (@203,204,207,208)','Closing channels')
 
     def toggle_switch(self,command):
         """Opens or closes the switch to the lcr. Must be closed for impedance measurements and open for thermopower measurements.
@@ -323,7 +264,7 @@ class DAQ():
         else: raise ValueError('Unknown command for DAQ')
 
         inst_command = 'ROUT:{} (@{})'.format(inst_command,self.switch)
-        return self._write(inst_command,'Flipping switch',command)
+        return self.write(inst_command,'Flipping switch',command)
 
     def read_errors(self):
         """Reads errors from the DAQ (unsure if working or not)"""
@@ -336,141 +277,73 @@ class DAQ():
         Sets units to degrees celsius
         """
         #configure thermocouples on channel 104 and 105 to type S
-        self._write('CONF:TEMP TC,S,(@{},{})'.format(self.te1,self.te2),'Setting thermocouples','S-type')
+        self.write('CONF:TEMP TC,S,(@{},{})'.format(self.te1,self.te2),'Setting thermocouples','S-type')
 
         #configure 10,000 ohm thermistor
-        self._write('CONF:TEMP THER,{},(@{})'.format(self.therm,self.tref),'Setting thermistor','{} k.Ohm'.format(self.therm/1000))
+        self.write('CONF:TEMP THER,{},(@{})'.format(config.THERMISTOR_OHMS,self.tref),'Setting thermistor','{} k.Ohm'.format(config.THERMISTOR_OHMS/1000))
 
         #set units to degrees C
-        self._write('UNIT:TEMP C,(@{},{},{})'.format(self.tref,self.te1,self.te2),'Setting temperature units','Celsius')
+        self.write('UNIT:TEMP C,(@{},{},{})'.format(self.tref,self.te1,self.te2),'Setting temperature units','Celsius')
 
         #set thermocouples to use external reference junction
-        self._write('SENS:TEMP:TRAN:TC:RJUN:TYPE EXT,(@{},{})'.format(self.te1,self.te2), 'Setting reference junction','external')
+        self.write('SENS:TEMP:TRAN:TC:RJUN:TYPE EXT,(@{},{})'.format(self.te1,self.te2), 'Setting reference junction','external')
 
         #sets integration time to 10 cycles. affects measurement resolution
-        self._write('SENS:TEMP:NPLC {},(@{},{},{})'.format(self.temp_integration,self.tref,self.te1,self.te2), 'Setting temperature integration time','{} cycle/s'.format(self.temp_integration))
+        self.write('SENS:TEMP:NPLC {},(@{},{},{})'.format(config.TEMPERATURE_INTEGRATION_TIME,self.tref,self.te1,self.te2), 'Setting temperature integration time','{} cycle/s'.format(config.TEMPERATURE_INTEGRATION_TIME))
 
     def _config_volt(self):
         """Configures the voltage measurements"""
-        self._write('CONF:VOLT:DC (@{})'.format(self.volt),'Setting voltage','DC')
-        self._write('SENS:VOLT:DC:NPLC {},(@{})'.format(self.volt_integration,self.volt),'Setting voltage integration time','{} cycle/s'.format(self.volt_integration))
-
-    def _write(self,command,message,val='\b\b\b  '):
-        c=0
-        while c <= self.maxtry:
-            try:
-                logger.debug('\t{} to {}'.format(message,val))
-                self.Ins.write(command)         #sets format to ascii
-            except Exception as e:
-                if c >= self.maxtry:
-                    logger.error('\tError: "{}" failed! Check log for details'.format(message))
-                    logger.debug('Error message: {}'.format(e))
-                    self.status = False
-                    return False
-            else:
-                self.status = True
-                return True
-            c=c+1
-
-    def _read(self,command,message):
-        c=0
-        while c <= self.maxtry:
-            try:
-                self.Ins.write(command) #tells the DAQ what to measure
-                logger.debug('\t{}...'.format(message))
-                return self.Ins.query_ascii_values('READ?') #gets the data
-            except Exception as e:
-                if c >= self.maxtry:
-                    logger.error('\tError: "{}" failed! Check log for details'.format(message))
-                    logger.debug('Error message: {}'.format(e))
-                    return False
-
-            c=c+1
+        self.write('CONF:VOLT:DC (@{})'.format(self.volt),'Setting voltage','DC')
+        self.write('SENS:VOLT:DC:NPLC {},(@{})'.format(config.VOLTAGE_INTEGRATION_TIME,self.volt),'Setting voltage integration time','{} cycle/s'.format(config.VOLTAGE_INTEGRATION_TIME))
 
     def shutdown(self):
         """Shuts down the DAQ"""
         self.reset()
-        self.Ins.close()    #close port to the DAQ
+        self.device.close()    #close port to the DAQ
         logger.critical('The DAQ has been shutdown and port closed')
 
-class Furnace():
+class VariablePortInstrument():
+    """
+    Instruments that subclass VariablePortInstrument do not have a static address to call each time the device connects. The correct port has to be dynamically discovered"""
+
+class Furnace(minimalmodbus.Instrument):
     """Driver for the Eurotherm 3216 Temperature Controller
 
-    .. note::
-       units are in °C
+        .. note::
+        units are in °C
 
-    =============== ===========================================================
-    Attributes      message
-    =============== ===========================================================
-    maxtry           max number to attempt command
-    default_temp     revert to this temperature when resetting
-    status           whether the instrument is connected
-    address         computer port address
-    =============== ===========================================================
+        =============== ===========================================================
+        Attributes      message
+        =============== ===========================================================
+        default_temp     revert to this temperature when resetting
+        status           whether the instrument is connected
+        address         computer port address
+        =============== ===========================================================
 
-    =============== ===========================================================
-    Methods         message
-    =============== ===========================================================
-    connect          attempt to connect to the LCR meter
-    set_temp         set temperature of furnace
-    get_temp         get temperature from furnace
-    set_heatrate     set heatrate of furnace
-    get_heatrate     get heatrate from furnace
-    set_other        set another parameter on furnace
-    get_other        get another parameter from furnace
-    reset            resets the device
-    =============== ===========================================================
-    """
-
-    def __init__(self,ports=None):
-
+        =============== ===========================================================
+        Methods         message
+        =============== ===========================================================
+        connect          attempt to connect to the LCR meter
+        set_temp         set temperature of furnace
+        get_temp         get temperature from furnace
+        set_heatrate     set heatrate of furnace
+        get_heatrate     get heatrate from furnace
+        set_other        set another parameter on furnace
+        get_other        get another parameter from furnace
+        reset            resets the device
+        =============== ===========================================================
+        """
+    
+    default_temp = config.RESET_TEMPERATURE
+    def __init__(self):
         self.port = config.FURNACE_ADDRESS
-        self.maxtry = 10
-        self.default_temp = config.RESET_TEMPERATURE
-        self.status = False
-
-        self._connect(ports)
+        try:
+            super().__init__(self.port,1)
+        except Exception:
+            raise InstrumentConnectionError('Could not connect to the requested device!')
 
     def __str__(self):
-        modbus_settings = {key: value for key,value in self.Ins.__dict__.items() if key != 'serial'}
-        output = {'furnace_settings':
-                        {'port': self.port,
-                         'maxtry': self.maxtry},
-                  'modbus_settings': modbus_settings,
-                  'serial_settings': self.Ins.serial.get_settings()}
-        return "\n    'status': {}".format(self.status) + '\n ' + pprint.pformat(output, indent=4, width=1)[1:]
-
-    def _connect(self,ports):
-        """
-        Attempts connection to the furnace through each port in ports. Stops searching when connection is successful
-
-        :param ports: names of available serial ports
-        :type ports: list
-        """
-        if not ports: ports = self.port
-
-        if not isinstance(ports,list): ports = [ports]
-
-        logger.debug('Attempting to connect to the furnace...')
-        for port in ports:  #loop through available ports
-            if self.status:      #stop search if device is already found
-                break
-            for i in range(self.maxtry):
-                try:
-                    logger.debug('    Trying {}...'.format(port))
-                    self.Ins = minimalmodbus.Instrument(port,1)
-                    tmp = self.Ins.read_register(107) #try connect to furnace
-                    if tmp == 531:
-                        logger.info('    FUR - CONNECTED!')
-                        self.configure()
-                        self.status = True
-                        break
-                except Exception as e:
-                    if i == self.maxtry:
-                        logger.debug('    Error: {}'.format(e))
-
-        if not self.status:
-            logger.error('    FUR - FAILED (check log for details)')
+        return '\n'.join([key+": "+str(val) for key,val in self.__dict__.items()])
 
     def configure(self):
         """
@@ -725,11 +598,11 @@ class Furnace():
 
     def flush_input(self):
         logger.debug('Flushing furnace input')
-        self.Ins.serial.reset_input_buffer()
+        self.serial.reset_input_buffer()
 
     def flush_output(self):
         logger.debug('Flushing furnace output')
-        self.Ins.serial.reset_output_buffer()
+        self.serial.reset_output_buffer()
 
     def shutdown(self):
         self.setpoint_1(40)
@@ -754,28 +627,26 @@ class Furnace():
 
     def _write(self,modbus_address,value,message,decimals=0):
 
-        for i in range(1,self.maxtry):
+        for i in range(0,config.GLOBAL_MAXTRY):
             try:
                 logger.debug('\t{} to {}'.format(message,value))
-                self.Ins.write_register(modbus_address,value,numberOfDecimals=decimals)
+                self.write_register(modbus_address,value,numberOfDecimals=decimals)
                 return True
             except Exception as e:
-                if i == self.maxtry:
+                if i == config.GLOBAL_MAXTRY-1:
                     logger.error('\tError: "{}" failed! Check log for details'.format(message))
                     logger.debug('Error message: {}'.format(e))
-                    return False
 
     def _read(self,modbus_address,message,decimals=0):
-
-        for i in range(1,self.maxtry):
+        for i in range(0,config.GLOBAL_MAXTRY):
             try:
                 logger.debug('\t{}...'.format(message))
-                return self.Ins.read_register(modbus_address,numberOfDecimals=decimals)
+                return self.read_register(modbus_address,numberOfDecimals=decimals)
             except Exception as e:
-                if i == self.maxtry:
+                if i == config.GLOBAL_MAXTRY-1:
                     logger.error('\t"{}" failed! Check log for details'.format(message))
                     logger.debug('Error message: {}'.format(e))
-                    return False
+                    logger.error(InstrumentError(e))
 
 class Motor():
     """Driver for the motor controlling the linear stage
@@ -806,8 +677,6 @@ class Motor():
     """
 
     def __init__(self,ports=None):
-        self.maxtry = 5
-        self.status = False
         self.home = 4800
         self.port = config.MOTOR_ADDRESS
         self.pulse_equiv = config.PITCH * config.STEP_ANGLE / (360*config.SUBDIVISION)
@@ -816,22 +685,7 @@ class Motor():
         self._connect(ports)
 
     def __str__(self):
-        # """String representation of the :class:`Drivers.Motor` object."""
-        # return "{}.{}<id=0x{:x}\n\naddress = {}\nmaxtry = {}\n{}\nstatus = {}\nhome = {}\nmax_xpos = {}".format(
-        #     self.__module__,
-        #     self.__class__.__name__,
-        #     id(self),
-        #     self.port,
-        #     self.maxtry,
-        #     self.status,
-        #     self.home,
-        #     self.max_xpos
-        #     )
-
-        output = {'port': self.port,
-                  'maxtry': self.maxtry,
-                  'serial_settings': self.get_settings()}
-        return "\n    'status': {}".format(self.status) + '\n ' + pprint.pformat(output, indent=4, width=1)[1:]
+        return '\n'.join([key+": "+str(val) for key,val in self.__dict__.items()])
 
     def _connect(self,ports):
         """
@@ -1006,43 +860,38 @@ class Motor():
 class AlicatController(FlowMeter):
     """Driver for an individual Mass Flow Controller.
 
-    .. note::
+        .. note::
 
-        no need to instantiate directly - access is from within :class:'~Drivers.MFC'
+            no need to instantiate directly - access is from within :class:'~Drivers.MFC'
 
-    =============== ===========================================================
-    Methods         message
-    =============== ===========================================================
-    get_massflow    gets massflow from controller
-    set_massflow    sets massflow on controller
-    get_pressure    gets pressure from controller
-    set_pressure    sets massflow on controller
-    get_temp        gets pressure from controller
-    get_vol_flow    gets volumetric flow from controller
-    get_setpoint    gets current set point from controller
-    reset           resets the device
-    =============== ===========================================================
+        =============== ===========================================================
+        Methods         message
+        =============== ===========================================================
+        get_massflow    gets massflow from controller
+        set_massflow    sets massflow on controller
+        get_pressure    gets pressure from controller
+        set_pressure    sets massflow on controller
+        get_temp        gets pressure from controller
+        get_vol_flow    gets volumetric flow from controller
+        get_setpoint    gets current set point from controller
+        reset           resets the device
+        =============== ===========================================================
 
-    :Example:
+        :Example:
 
-    >>> from laboratory.drivers import instruments
-    >>> gas = instruments.connect()
+        >>> from laboratory.drivers import instruments
+        >>> gas = instruments.connect()
 
+        """
 
-
-    """
     def __init__(self,port,address,name,upper_limit,precision):
         super(AlicatController,self).__init__(port,address)
         self.name = name
-        self.maxtry = 5
         self.precision = precision
         self.upper_limit = upper_limit
 
     def __str__(self):
-        output = {'name': self.name,
-                  'address':self.address,
-                  'open':self.open}
-        return '\n ' + pprint.pformat(output, indent=4, width=1)[1:]
+        return '\n'.join([key+": "+str(val) for key,val in self.__dict__.items() if key not in ['keys','gases','connection']])
 
     def get(self):
         vals = FlowMeter.get(self)
@@ -1092,107 +941,88 @@ class AlicatController(FlowMeter):
 
     def _command(self,command):
 
-        for i in range(1,self.maxtry):
+        for i in range(1,config.GLOBAL_MAXTRY):
             try:
                 self._write_and_read(command)
                 return True
             except Exception as e:
-                if i ==self.maxtry:
+                if i == config.GLOBAL_MAXTRY:
                     logger.error('Error: {}{}'.format(self.name,e))
 
 class GasControllers():
     """Global driver for all Mass Flow Controllers
 
-    .. note::
+        .. note::
 
-        see AlicatController for methods to control individual gases
+            see AlicatController for methods to control individual gases
 
-    =============== ===========================================================
-    Attributes      message
-    =============== ===========================================================
-    maxtry          max number to attempt command
-    status          whether the instrument is connected
-    co2             controls for the Carbon Dioxide (CO2) controller
-    co_a            controls for the coarse Carbon Monoxide (CO) controller
-    co_b            controls for the fine Carbon Monoxide (CO) controller
-    h2              controls for the Hydrogen (H2) controller
-    address         computer port address
-    =============== ===========================================================
+        =============== ===========================================================
+        Attributes      message
+        =============== ===========================================================
+        maxtry          max number to attempt command
+        status          whether the instrument is connected
+        co2             controls for the Carbon Dioxide (CO2) controller
+        co_a            controls for the coarse Carbon Monoxide (CO) controller
+        co_b            controls for the fine Carbon Monoxide (CO) controller
+        h2              controls for the Hydrogen (H2) controller
+        address         computer port address
+        =============== ===========================================================
 
-    =============== ===========================================================
-    Methods         message
-    =============== ===========================================================
-    close_all       closes all controllers
-    connect         attempt to connect to the LCR meter
-    flush_all       flushes data from the input/output buffer of all devices
-    fugacity_co     returns a ratio of CO2/CO to achieve desired oxygen fugacity
-    fugacity_h2     returns a ratio of H2/CO2 to achieve desired oxugen fugacity
-    reset           resets the device
-    =============== ===========================================================
+        =============== ===========================================================
+        Methods         message
+        =============== ===========================================================
+        close_all       closes all controllers
+        connect         attempt to connect to the LCR meter
+        flush_all       flushes data from the input/output buffer of all devices
+        fugacity_co     returns a ratio of CO2/CO to achieve desired oxygen fugacity
+        fugacity_h2     returns a ratio of H2/CO2 to achieve desired oxugen fugacity
+        reset           resets the device
+        =============== ===========================================================
 
-    :Example:
+        :Example:
 
-    >>> from laboratory.drivers import instruments
-    >>> gas = instruments.connect()
-    >>> gas_input = {'co2':20,'co_a':15,'co_b':1.2,'h2':7.67}
-    >>> gas.set_all(**gas_input)
-    True
-    >>> gas.get_all()
-    {'co2': { 'pressure': 14.86,
-              'temperature': 24.83,
-              'volumetric_flow': 19.8,
-              'mass_flow': 20.0,
-              'setpoint': 20.0},
-     'co_a': {'pressure': 14.78,
-              'temperature': 24.69,
-              'volumetric_flow': 14.89,
-              'mass_flow': 15.0,
-              'setpoint': 15.0},
-     'co_b': {'pressure': 14.89,
-              'temperature': 24.34,
-              'volumetric_flow': 1.181,
-              'mass_flow': 1.2,
-              'setpoint': 1.2},
-     'h2': {  'pressure': 14.8,
-              'temperature': 23.9,
-              'volumetric_flow': 7.59,
-              'mass_flow': 7.67,
-              'setpoint': 7.67}}
-    >>> gas.co2.setpoint(12.57)
-    >>> gas.co2.get()   #return results from an individual controller
-    {'pressure': 14.83,
-     'temperature': 24.86,
-     'volumetric_flow': 12.57,
-     'mass_flow': 12.57,
-     'setpoint': 12.57}
-    """
+        >>> from laboratory.drivers import instruments
+        >>> gas = instruments.connect()
+        >>> gas_input = {'co2':20,'co_a':15,'co_b':1.2,'h2':7.67}
+        >>> gas.set_all(**gas_input)
+        True
+        >>> gas.get_all()
+        {'co2': { 'pressure': 14.86,
+                'temperature': 24.83,
+                'volumetric_flow': 19.8,
+                'mass_flow': 20.0,
+                'setpoint': 20.0},
+        'co_a': {'pressure': 14.78,
+                'temperature': 24.69,
+                'volumetric_flow': 14.89,
+                'mass_flow': 15.0,
+                'setpoint': 15.0},
+        'co_b': {'pressure': 14.89,
+                'temperature': 24.34,
+                'volumetric_flow': 1.181,
+                'mass_flow': 1.2,
+                'setpoint': 1.2},
+        'h2': {  'pressure': 14.8,
+                'temperature': 23.9,
+                'volumetric_flow': 7.59,
+                'mass_flow': 7.67,
+                'setpoint': 7.67}}
+        >>> gas.co2.setpoint(12.57)
+        >>> gas.co2.get()   #return results from an individual controller
+        {'pressure': 14.83,
+        'temperature': 24.86,
+        'volumetric_flow': 12.57,
+        'mass_flow': 12.57,
+        'setpoint': 12.57}
+        """
+
     def __init__(self):
         self.status = False
         self.port = config.MFC_ADDRESS
         self._connect()
 
     def __str__(self):
-        output = {'port': self.port,
-                  'maxtry': self.h2.maxtry,
-                  '  h2':
-                    {'name':self.h2.name,
-                     'address':self.h2.address,
-                     'open': self.h2.open},
-                  ' co2':
-                    {'name':self.co2.name,
-                     'address':self.co2.address,
-                     'open': self.co2.open},
-                  'co_a':
-                    {'name':self.co_a.name,
-                     'address':self.co_a.address,
-                     'open': self.co_a.open},
-                  'co_b':
-                    {'name':self.co_b.name,
-                     'address':self.co_b.address,
-                     'open': self.co_b.open},
-                  'serial': self.h2.connection.get_settings()}
-
-        return "\n    'status': {}".format(self.status) + '\n ' + pprint.pformat(output, indent=4, width=1)[1:]
+        return '\n\n'.join([gas + ':\n\n' + getattr(self,gas).__str__() for gas in ['co2','co_a','co_b','h2']])
 
     def _connect(self):
         """
@@ -1453,7 +1283,7 @@ def connect():
     return LCR(), DAQ(), GasControllers(), Furnace(), Motor()
 
 def reconnect(lab_obj):
-
+    
     # ports = get_ports()
 
     # if not ports: return
@@ -1464,3 +1294,5 @@ def reconnect(lab_obj):
     if not lab_obj.motor.status: lab_obj.motor = Motor()
     else:
         print('All instruments are connected!')
+
+       
