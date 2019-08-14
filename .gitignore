@@ -7,8 +7,8 @@ docs/logfiles/
 docs/build/
 __pycache__
 calibration_files/
-
-
+*.pkl
+launch.json
 
 # Compiled source #
 ###################
