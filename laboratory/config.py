@@ -9,6 +9,9 @@ PROJECT_NAME = 'High-T test run'
 SAMPLE_THICKNESS = 2.6 #in mm
 SAMPLE_DIAMETER = 12.7 #in mm
 
+
+GLOBAL_MAXTRY = 5
+
 #-------------------DAQ settings-------------------
 DAQ_ADDRESS = 'USB0::0x0957::0x2007::MY49021284::INSTR'
 #daq channels
@@ -51,6 +54,11 @@ CO_B_UPPER_LIMIT = 2
 CO_B_PRECISION = 3
 
 #-------------------Calibrations files-------------------
-from laboratory.utils.data import _load_pkl
+# from .utils.data import _load_pkl
+import pickle 
 
-OPEN_FURNACE_CORRECTION = _load_pkl('laboratory\\calibration\\open_furnace_correction.pkl')
+FURNACE_CALIBRATION = 'laboratory\\calibration\\open_furnace_correction.pkl'
+
+with open(FURNACE_CALIBRATION, 'rb') as f:  # Overwrites any existing file.
+    FURNACE_CORRECTION = pickle.load(f)
+
