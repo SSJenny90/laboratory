@@ -5,7 +5,7 @@ datafiles/
 test.py
 docs/logfiles/
 docs/build/
-__pycache__/
+__pycache__
 calibration_files/
 
 
