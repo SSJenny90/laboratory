@@ -1,4 +1,4 @@
-from laboratory.utils import loggers
+from . import loggers
 logger = loggers.lab(__name__)
 from laboratory import config
 from pandas.api.types import is_numeric_dtype
@@ -13,7 +13,6 @@ def check_controlfile(controlfile):
     :param controlfile: a loaded control file
     :type controlfile: pd.DataFrame
     """
-    # import pdb; pdb.set_trace()
     columns = set(list(controlfile.columns.values))
     exp_numeric = ['target_temp','hold_length','heat_rate','interval','offset']
     exp_str = ['buffer','fo2_gas']
@@ -137,9 +136,7 @@ def print_df(df):
     print('Control File:\n')
     column_names = ['target_temp', 'hold_length', 'heat_rate', 'interval', 'buffer', 'offset', 'fo2_gas', 'est_total_mins']
     column_alias = ['Target [C]', 'Hold [hrs]', 'Heat rate [C/min]', 'Interval', 'Buffer', 'Offset', 'Gas', 'Est. mins']
-    # print(df.to_string())
-    print(df.to_string(columns=column_names,header=column_alias,index=False))
-    print(' ')
+    print(df.to_string(columns=column_names,header=column_alias,index=False) + '\n')
 
 if __name__ == '__main__':
     m = Messages()

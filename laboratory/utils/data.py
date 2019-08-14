@@ -173,9 +173,8 @@ def _load_pkl(filename):
     if not filename.endswith('.pkl'):
         filename = filename + '.pkl'
 
-    # for f in filenames:
-    with open(filename, 'rb') as input:  # Overwrites any existing file.
-        return pickle.load(input)
+    with open(filename, 'rb') as f:  # Overwrites any existing file.
+        return pickle.load(f)
 
 def append_data(filename,data):
 
