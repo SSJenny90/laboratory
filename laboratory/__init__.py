@@ -1,1 +1,1 @@
-from .laboratory import Setup
+from .laboratory import Experiment, Laboratory
