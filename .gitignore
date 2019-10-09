@@ -23,7 +23,7 @@ test_load.py
 *.o
 *.so
 *.ini
-
+*.cpython-37.pyc
 
 # Packages #
 ############
