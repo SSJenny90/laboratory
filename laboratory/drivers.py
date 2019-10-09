@@ -10,6 +10,8 @@ minimalmodbus.CLOSE_PORT_AFTER_EACH_CALL = True
 pp = pprint.PrettyPrinter(width=1,indent=4)
 from alicat import FlowMeter
 import math
+import os
+from laboratory import calibration
 
 class USBSerialInstrument():
     """Base class for instruments that connect via USB"""
@@ -679,7 +681,7 @@ class Motor():
     """
 
     def __init__(self,ports=None):
-        self.home = config.EQUILIBRIUM_POSITION
+        self.home = calibration.get_equilibrium_position(os.path.join(config.CALIBRATION_DIR,config.EQUILIBRIUM_POSITION))
         self.port = config.MOTOR_ADDRESS
         self.pulse_equiv = config.PITCH * config.STEP_ANGLE / (360*config.SUBDIVISION)
         self.max_xpos = config.MAXIMUM_STAGE_POSITION
