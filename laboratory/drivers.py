@@ -1039,6 +1039,7 @@ class GasControllers():
         except Exception as e:
             logger.error('Gas - FAILED (check log for details)')
             logger.debug(e)
+            self.all = []
             self.status = False
         else:
             logger.info('Gas connected at {}'.format(self.port))
@@ -1049,12 +1050,13 @@ class GasControllers():
         self.flush_all()
         return {gas.name: gas.get() for gas in self.all}
 
-    def set_all(self,co2,co_a,co_b,h2):
+    def set_all(self,gases):
+        assert isinstance(gases,dict)
+
         self.flush_all()
-        self.co2.setpoint(co2)
-        self.co_a.setpoint(co_a)
-        self.co_b.setpoint(co_b)
-        self.h2.setpoint(h2)
+        for gas, setpoint in gases.items():
+            getattr(self,gas).setpoint(setpoint)
+
 
     def reset_all(self):
         """Resets all connected flow controllers to 0 massflow"""
@@ -1072,7 +1074,6 @@ class GasControllers():
     def shutdown(self):
         self.reset_all()
         self.close_all()
-
 
     def fugacity_co(self,fo2p, temp):
         """Calculates the ratio CO2/CO needed to maintain a constant oxygen fugacity at a given temperature.
@@ -1099,8 +1100,8 @@ class GasControllers():
         tk = temp + t0
         fo2 = 1.01325*(10**(fo2p-5)) # convert Pa to atm
 
-        g1=(((a14*temp+a13)*temp+a12)*temp+a11)*temp+a10;  # Gibbs free energy
-        k1=math.exp(-g1/rgc/tk);  # equilibrium constant
+        g1=(((a14*temp+a13)*temp+a12)*temp+a11)*temp+a10  # Gibbs free energy
+        k1=math.exp(-g1/rgc/tk)  # equilibrium constant
 
         CO = k1 - 3*k1*fo2 - 2*fo2**1.5
         CO2 = 2*k1*fo2 + fo2 + fo2**1.5 + fo2**0.5
