@@ -1,3 +1,4 @@
+# from laboratory.config import config
 from laboratory import config
 import time
 import logging
@@ -11,12 +12,13 @@ def lab(name):
     logger.setLevel('DEBUG') #define root loger level
 
     #clear any handlers already present. Prevents duplicate messages
-    if logger.hasHandlers(): logger.handlers.clear()
+    if logger.hasHandlers():
+        logger.handlers.clear()
 
     #create a folder for the log files if none exists
-    folder = '../logfiles'
-    if not os.path.exists(folder): os.mkdir(folder)
-    filepath = os.path.join(folder, '{}_{}.log'.format(config.PROJECT_NAME,time.strftime('%d-%m-%Y_%H%M')))
+    folder = '../log'
+    if not os.path.exists(config.LOG_DIR): os.mkdir(config.LOG_DIR)
+    filepath = os.path.join(config.LOG_DIR, '{}_{}.log'.format(config.PROJECT_NAME,time.strftime('%d-%m-%Y_%H%M')))
 
     def sorted_ls(path):
         """Removes all but the 10 most recent logfiles -- prevent clutter during testing"""
@@ -46,11 +48,12 @@ def data():
 
     dlogger = logging.getLogger("data_logger")
     dlogger.setLevel('DEBUG')
-    if dlogger.hasHandlers(): dlogger.handlers.clear()
+    if dlogger.hasHandlers():
+        dlogger.handlers.clear()
 
-    folder = 'laboratory/datafiles'
-    if not os.path.exists(folder): os.mkdir(folder)
-    filename = os.path.join(folder,'{}_{}.txt'.format(config.PROJECT_NAME,time.strftime('%d-%B-%y-%H%M')))
+    if not os.path.exists(config.DATA_DIR):
+        os.mkdir(config.DATA_DIR)
+    filename = os.path.join(config.DATA_DIR,'{}_{}.txt'.format(config.PROJECT_NAME,time.strftime('%d-%B-%y-%H%M')))
 
     #set up file handler
     fh = logging.FileHandler(filename)
