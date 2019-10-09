@@ -7,7 +7,8 @@ from datetime import datetime
 import time
 import sys
 from scipy.optimize import curve_fit
-
+from laboratory import calibration
+import os
 
 
 def check_controlfile(controlfile):
@@ -66,7 +67,8 @@ def parabola(x,a,b,c):
 
 def find_indicated(temperature):
     #from calibration experiment
-    data = config.OPEN_FURNACE_CORRECTION
+    data = calibration.get_furnace_correction(os.path.join(config.CALIBRATION_DIR,config.OPEN_FURNACE_CORRECTION))
+    # data = config.OPEN_FURNACE_CORRECTION
     popt = data['correction']
     return np.around(np.multiply(popt[0],np.square(temperature)) + np.multiply(popt[1],temperature) + popt[2],2)
 
