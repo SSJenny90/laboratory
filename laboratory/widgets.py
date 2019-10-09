@@ -4,11 +4,11 @@ import time
 
 class ProgressBar():
 
-    def __init__(self, length, display=True, bar_length=25, pre_message=''):
+    def __init__(self, length, hide=True, bar_length=25, pre_message=''):
         self.iteration = 1
         self.length = length
         self.temp = ''
-        self.display = display
+        self.hide = hide
         self.bar_length = bar_length
         self.pre_message = pre_message
     
@@ -22,7 +22,7 @@ class ProgressBar():
         :type post_message: str
         """
 
-        if not self.display:
+        if self.hide:
             return   #don't display progress bar when in debugging mode
 
         if not pre_message:
@@ -36,8 +36,8 @@ class ProgressBar():
         sys.stdout.write('\r{}|{}| {}{} - {}             '.format(pre_message,bar, percentage, '%',post_message))
 
         if self.iteration == self.length:
-            sys.stdout.write('\r@{:0.1f}C |{}| {}{} - {}             '.format(self.temp,bar, percentage, '%','Complete!'))
-            sys.stdout.write('')
+            sys.stdout.write('\r{}|{}| {}{} - {}             '.format(pre_message,bar, percentage, '%','Complete!\n'))
+            # sys.stdout.write('')
 
         sys.stdout.flush()
         self.iteration += 1
@@ -47,14 +47,14 @@ class ProgressBar():
 
 class CountdownTimer():
 
-    def __init__(self, hold=False, display=True):
+    def __init__(self, hold=False, hide=True):
         """Controls the count down until next measurement cycle
 
         :param hold: whether to display timer after time has elapsed [default=False (removes timer)]
         :type hold: boolean
         """
         self.hold = hold
-        self.display = display
+        self.hide = hide
 
     def start(self, wait_time, start_time=None, message='Time remaining: ', stop_message=''):
         """Controls the count down until next measurement cycle
@@ -71,14 +71,14 @@ class CountdownTimer():
         :param stop_message: message displayed when time has elapsed
         :type stop_message: str
         """
-        if not self.display:
+        if self.hide:
             return
 
         if not start_time:
             start_time = datetime.now()
 
         end_time = start_time + timedelta(**wait_time)
-
+        print('')
         while (end_time-datetime.now()).total_seconds() > 0:
             sys.stdout.write('\r{} {}'.format(message,str(end_time-datetime.now())[:7]))
             sys.stdout.flush()
