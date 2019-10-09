@@ -5,7 +5,7 @@ from datetime import datetime as dt
 import pandas as pd
 import pickle
 import re
-
+import os 
 def data_dict():
     return {'furnace': {
                 'indicated':[],
@@ -153,7 +153,7 @@ def save_obj(obj, filename):
     :type filename: str
     """
     filename = filename.split('.')[0]
-    with open(filename + '.pkl', 'wb') as output:  # Overwrites any existing file.
+    with open(os.join(config.DATA_DIR,filename + '.pkl'), 'wb') as output:  # Overwrites any existing file.
         pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
 
 def load_frequencies(min,max,n,log,filename):
