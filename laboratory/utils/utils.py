@@ -6,6 +6,9 @@ import numpy as np
 from datetime import datetime
 import time
 import sys
+from scipy.optimize import curve_fit
+
+
 
 def check_controlfile(controlfile):
     """Checks to make sure the specified controlfile is a valid file that can be used by this program
@@ -57,16 +60,14 @@ def check_controlfile(controlfile):
 
     return True
 
+
+def parabola(x,a,b,c):
+    return np.multiply(a,np.square(x)) + np.multiply(b,x) + c
+
 def find_indicated(temperature):
     #from calibration experiment
     data = config.OPEN_FURNACE_CORRECTION
-
-    target = data['target']
-    indicated = data['indicated']
-    mean_temp = data['mean_temp']
     popt = data['correction']
-    # popt = curve_fit(parabola, mean_temp[idx], indicated[idx])[0]
-
     return np.around(np.multiply(popt[0],np.square(temperature)) + np.multiply(popt[1],temperature) + popt[2],2)
 
 
@@ -88,7 +89,7 @@ def count_down(start,interval,time_remaining=1):
     :param interval: time in seconds remaining until next measurement
     :type interval: float/int
     """
-    print('')
+    print('Hello')
     while time_remaining > 0:
         time_remaining = int(interval*60+
         (start-datetime.now()).total_seconds())
@@ -137,6 +138,9 @@ def print_df(df):
     column_names = ['target_temp', 'hold_length', 'heat_rate', 'interval', 'buffer', 'offset', 'fo2_gas', 'est_total_mins']
     column_alias = ['Target [C]', 'Hold [hrs]', 'Heat rate [C/min]', 'Interval', 'Buffer', 'Offset', 'Gas', 'Est. mins']
     print(df.to_string(columns=column_names,header=column_alias,index=False) + '\n')
+
+
+
 
 if __name__ == '__main__':
     m = Messages()
