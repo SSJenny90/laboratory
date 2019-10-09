@@ -4,28 +4,34 @@ import numpy as np
 from datetime import datetime as dt
 import pandas as pd
 import pickle
+import re
 
-
-data = {   'thermo': { 'indicated':[],
-                    'target':[],
-                    'reference_temperature':[],
-                    'temp_1':[],
-                    'temp_2':[],
-                    'voltage':[],},
-            'gas': {'h2': [],
-                    'co_a': [],     # 0-50 SCCM
-                    'co_b': [],     # 0-2 SCCM
-                    'co2': [],},
-            'impedance': {  'impedance': [],
-                            'phase_angle': []},
+def data_dict():
+    return {'furnace': {
+                'indicated':[],
+                'target':[],},
+            'daq': {
+                'reference':[],
+                'thermo_1':[],
+                'thermo_2':[],
+                'voltage':[]},
+            'motor': {
+                'position': []},
+            'gas': {
+                'h2': [],
+                'co_a': [],     # 0-50 SCCM
+                'co_b': [],     # 0-2 SCCM
+                'co2': []},
+            'lcr': {
+                'z': [],
+                'theta': []},
             'file_name': '',
             'time': [],
-            'stage_position': [],
+            'step_time':[],
             'fugacity': {   'fugacity': [],
                             'ratio': [],
                             'offset': []},
-}
-
+            'freq':None}
 
 class Data():
     """Storage for all data collected during experiments. Data file are loaded into this object for processing and plotting
@@ -77,19 +83,24 @@ class Data():
             self.gas.h2,
             self.imp,
             )
+            
+    def load_frequencies(self,min=config.MINIMUM_FREQ,max=config.MAXIMUM_FREQ,n=50,log=True):
+        """Creates an np.array of frequency values
+        
+            :param min: the minimum frequency value
+            :type min: float, int
+        
+            :param max: the maximum frequency value
+            :type max: float, int
 
-    def load_frequencies(self,min=config.MINIMUM_FREQ,max=config.MAXIMUM_FREQ,n=50,log=True,filename=None):
-        """Creates an np.array of frequency values specified by either min, max and n or a file containing a list of frequencies specified by filename"""
-        if filename is not None:
-            with open(filename) as file:
-                freq = [line.rstrip() for line in file]
-            self.freq = np.around(np.array([float(f) for f in freq]))
-        elif log is True:
+            :param n: the desired number of frequency values to be populated between the min and max values
+            :type min: int
+            """
+        if log:
             self.freq = np.around(np.geomspace(min,max,n))
-        elif log is False:
-            self.freq = np.around(np.linspace(min,max,n))
         else:
-            return False
+            self.freq = np.around(np.linspace(min,max,n))
+
 
 def load_data(filename):
     if filename.endswith('.txt'):
@@ -105,58 +116,57 @@ def _load_text(filename):
     :param filename: name of the file to be parsed
     :type filename: str
     """
-    data = Data()
-    data.filename = filename
+    data = data_dict()
+    data['filename'] = filename
 
-    with open(filename,'r') as file:
-        datafile = file.readlines()
+    with open(filename,'r') as f:
+        datafile = f.readlines()
 
         Z,theta = [],[]
         for line in datafile:
 
-            #skip empty or commented lines
-            if line == '\n' or line.startswith('#'): continue
-
             #split line into space delimited tokens
-            token = list(filter(None, line.split(' ')))
+            # line = list(filter(None, line.split(' ')))
 
-            if token[0] == 'frequencies:':
-                line = line.replace(']','').replace('[','').replace(',','')
-                token = list(filter(None, line.split(' ')))
-                data.freq = np.array([float(f) for f in token[1:]])
+            if line.startswith('frequencies'):
+                line = re.findall(r'(?<=\[).*?(?=\])', line)[0].split(',')
+                data['freq'] = np.array([float(f) for f in line])
+                continue
+
+            line = line.split()
 
             #for time measurements...
-            if token[0] == 'D':                 #D == Datetime
+            if line[0] == 'D':                 #D == Datetime
                 dt_obj = dt.strptime(token[1].rstrip(),'%H:%M.%S_%d-%m-%Y')
                 data.time.append(dt_obj)
 
             #for gas measurements...
-            elif token[0] == 'G':                 #G == Gas
-                gas_type = token[1]
+            elif line[0] == 'G':                 #G == Gas
+                gas_type = line[1]
                 gas = getattr(data.gas,gas_type)
 
-                gas.mass_flow.append(float(token[2]))
-                gas.pressure.append(float(token[3]))
-                gas.temperature.append(float(token[4]))
-                gas.vol_flow.append(float(token[5]))
-                gas.setpoint.append(float(token[6]))
+                gas.mass_flow.append(float(line[2]))
+                gas.pressure.append(float(line[3]))
+                gas.temperature.append(float(line[4]))
+                gas.vol_flow.append(float(line[5]))
+                gas.setpoint.append(float(line[6]))
 
             #for furnace temperature measurements...
-            elif token[0] == 'F':       #F = Furnace
-                data.temp.target.append(float(token[1]))
-                data.temp.indicated.append(float(token[2]))
+            elif line[0] == 'F':       #F = Furnace
+                data.temp.target.append(float(line[1]))
+                data.temp.indicated.append(float(line[2]))
 
             #for thermopower measurements...
-            elif token[0] == 'T':               #T = thermopower
-                data.thermo.tref.append(float(token[1]))
-                data.thermo.te1.append(float(token[2]))
-                data.thermo.te2.append(float(token[3]))
-                data.thermo.volt.append(float(token[4]))
+            elif line[0] == 'T':               #T = thermopower
+                data.thermo.tref.append(float(line[1]))
+                data.thermo.te1.append(float(line[2]))
+                data.thermo.te2.append(float(line[3]))
+                data.thermo.volt.append(float(line[4]))
 
             #if the data line being read relates to impedance measurements...
-            elif token[0] == 'Z':               #Z = impedance
-                Z.append(float(token[1]))
-                theta.append(float(token[2]))
+            elif line[0] == 'Z':               #Z = impedance
+                Z.append(float(line[1]))
+                theta.append(float(line[2]))
                 if len(Z) == len(data.freq):
                     data.imp.Z.append(Z)
                     data.imp.theta.append(theta)
