@@ -1,7 +1,7 @@
 from laboratory.utils import loggers
 from laboratory.utils.exceptions import InstrumentError,InstrumentConnectionError, InstrumentCommunicationError
 logger = loggers.lab(__name__)
-from . import config
+from laboratory import config
 import visa
 import pprint
 import minimalmodbus
@@ -18,20 +18,21 @@ class USBSerialInstrument():
         try:
             self.device = visa.ResourceManager().open_resource(port)
         except visa.VisaIOError as e:
-            logger.debug(e)
             self.status = False
-            raise InstrumentConnectionError('Could not connect to the requested device!')
+            logger.error(InstrumentConnectionError('Could not connect to the {}!'.format(self.__class__.__name__)))
+            logger.debug(e)
         else:
-            logger.info('Connected!')
+            logger.info('{} connected at {}'.format(self.__class__.__name__, port))
             self.status = True
 
     def __str__(self):
         return '\n'.join([key+": "+str(val) for key,val in self.__dict__.items()])
 
-    def read(self,command,message,to_file=True):
+    def read(self,command,message='',to_file=True):
         for i in range(1,config.GLOBAL_MAXTRY):
             try:
-                if to_file: logger.debug('\t{}...'.format(message))
+                if message:
+                    logger.debug('\t{}...'.format(message))
                 return self.device.query_ascii_values(command)
             except Exception as e:
                 if i >= config.GLOBAL_MAXTRY:
@@ -39,10 +40,11 @@ class USBSerialInstrument():
                     logger.debug('Error message: {}'.format(e))
                     return False
 
-    def write(self,command,message,val='\b\b\b  ',to_file=True):
+    def write(self,command,message='',val='\b\b\b  ',to_file=True):
         for i in range(1,config.GLOBAL_MAXTRY):
             try:
-                if to_file: logger.debug('\t{} to {}'.format(message,val))
+                if message:
+                    logger.debug('\t{} to {}'.format(message,val))
                 self.device.write(command)         #sets format to ascii
                 return True
             except Exception as e:
@@ -89,7 +91,8 @@ class LCR(USBSerialInstrument):
         """
 
     def __init__(self):
-        super().__init__(port=config.LCR_ADDRESS)
+        self.address = config.LCR_ADDRESS
+        super().__init__(port=self.address)
 
     def get_complex_impedance(self):
         """Collects complex impedance from the LCR meter"""
@@ -99,8 +102,7 @@ class LCR(USBSerialInstrument):
 
     def configure(self,freq):
         """Appropriately configures the LCR meter for measurements"""
-        print('')
-        logger.info('Configuring LCR meter...')
+        logger.debug('Configuring LCR meter...')
         self.reset()
         self._set_format()
         self.display('list')
@@ -213,7 +215,8 @@ class DAQ(USBSerialInstrument):
     switch = config.SWITCH
 
     def __init__(self):
-        super().__init__(port=config.DAQ_ADDRESS)
+        self.address = config.DAQ_ADDRESS
+        super().__init__(port=self.address)
 
     def configure(self):
         """Configures the DAQ according to the current wiring"""
@@ -224,8 +227,10 @@ class DAQ(USBSerialInstrument):
         self._config_volt()
         self.toggle_switch('thermo')
 
-        if self.status: logger.debug('DAQ configured correctly')
-        else: logger.info('Could not correctly configure DAQ')
+        if self.status:
+            logger.debug('DAQ configured correctly')
+        else:
+            logger.info('Could not correctly configure DAQ')
 
     def get_temp(self):
         """Scans the thermistor and thermocouples for temperature readings
@@ -234,9 +239,10 @@ class DAQ(USBSerialInstrument):
         :rtype: list of floats (degrees Celsius)
         """
         command = 'ROUT:SCAN (@{},{},{})'.format(self.tref,self.te1,self.te2)
-        vals = self.read(command,'Getting temperature data')
+        self.write(command)
+        vals = self.read('READ?','Getting temperature data')
         self.mean_temp = (vals[1]+vals[2])/2
-        return vals
+        return {'reference':vals[0],'thermo_1':vals[1],'thermo_2':vals[2]}
 
     def get_voltage(self):
         """Gets voltage across the sample from the DAQ
@@ -244,14 +250,12 @@ class DAQ(USBSerialInstrument):
         :returns: voltage
         :rtype: float
         """
-        command = 'ROUT:SCAN (@{})'.format(self.volt)
-        return self.read(command,'Getting voltage data')[0]
+        self.write('ROUT:SCAN (@{})'.format(self.volt))
+        return {'voltage': self.read('READ?','Getting voltage data')[0]}
 
     def get_thermopower(self):
         """Collects both temperature and voltage data and returns a list"""
-        temp = self.get_temp()
-        voltage = self.get_voltage()
-        return {'tref':temp[0],'te1':temp[1],'te2':temp[2],'voltage':voltage}
+        return {**self.get_temp(), **self.get_voltage()}
 
     def toggle_switch(self,command):
         """Opens or closes the switch to the lcr. Must be closed for impedance measurements and open for thermopower measurements.
@@ -266,9 +270,9 @@ class DAQ(USBSerialInstrument):
         inst_command = 'ROUT:{} (@{})'.format(inst_command,self.switch)
         return self.write(inst_command,'Flipping switch',command)
 
-    def read_errors(self):
+    def has_errors(self):
         """Reads errors from the DAQ (unsure if working or not)"""
-        errors = self.Ins.write('SYST:ERR?')
+        errors = self.write('SYST:ERR?')
         logger.error(errors)
 
     def _config_temp(self):
@@ -301,10 +305,6 @@ class DAQ(USBSerialInstrument):
         self.reset()
         self.device.close()    #close port to the DAQ
         logger.critical('The DAQ has been shutdown and port closed')
-
-class VariablePortInstrument():
-    """
-    Instruments that subclass VariablePortInstrument do not have a static address to call each time the device connects. The correct port has to be dynamically discovered"""
 
 class Furnace(minimalmodbus.Instrument):
     """Driver for the Eurotherm 3216 Temperature Controller
@@ -339,16 +339,18 @@ class Furnace(minimalmodbus.Instrument):
         self.port = config.FURNACE_ADDRESS
         try:
             super().__init__(self.port,1)
-        except Exception:
-            raise InstrumentConnectionError('Could not connect to the requested device!')
+        except Exception as e:
+            logger.error(InstrumentConnectionError('Could not connect to the {}!'.format(self.__class__.__name__)))
+            logger.debug(e)
+        else:
+            logger.info('{} connected at {}'.format(self.__class__.__name__, self.port))
+            self.status = True
 
     def __str__(self):
         return '\n'.join([key+": "+str(val) for key,val in self.__dict__.items()])
 
     def configure(self):
-        """
-        Configures the furnace based on settings specified in the configuration file
-        """
+        """Configures the furnace based on settings specified in the configuration file"""
         logger.debug('Configuring furnace...')
         self.setpoint_2()
         self.setpoint_select('setpoint_1')
@@ -408,8 +410,7 @@ class Furnace(minimalmodbus.Instrument):
 
         :returns: Temperature in °C if succesful, else False
         """
-        self.indicated_temp = self._read(address,'Getting temperature')
-        return self.indicated_temp
+        return {'indicated':self._read(address,'Getting temperature')}
 
     def reset_timer(self):
         """Resets the current timer and immediately restarts. Used in for loops to reset the timer during every iteration. This is a safety measure should the program lose communication with the furnace.
@@ -457,8 +458,10 @@ class Furnace(minimalmodbus.Instrument):
         25.0
         """
 
-        if temperature: return self._write(self.default_temp,address,'setpoint 2')
-        else: return self._read(address,'Getting SP2 temperature')
+        if temperature:
+            return self._write(self.default_temp,address,'setpoint 2')
+        else:
+            return self._read(address,'Getting SP2 temperature')
 
     def setpoint_select(self,selection=None,address=15):
         """If selection is specified, selects the current working setpoint. If no argument is passed, it returns the current working setpoint.
@@ -534,7 +537,6 @@ class Furnace(minimalmodbus.Instrument):
             'reset' : resets the timer back to zero
             'run'   : starts the timer
             'hold'  : stops the timer
-            'end'   : the timer has ended (query only)
 
         :param status: desired working setpoint
         :type status: str
@@ -554,7 +556,7 @@ class Furnace(minimalmodbus.Instrument):
 
         if status == 'end':
             raise ValueError('"end" is not a valid option for controlling the timer. Please refer to the furnace documentation.')
-        return self._command(status,address,'timer status',{'reset':0,'run':1,'hold':2,'end':3})
+        return self._command(status,address,'timer status',{'reset':0,'run':1,'hold':2})
 
     def timer_type(self,selection=None,address=320):
         """Determines the behavior of the timer. The default configuration in this program is to dwell. If status is specified, the timer status will be set accordingly. If no argument is passed, it returns the current status of the timer.
@@ -677,7 +679,7 @@ class Motor():
     """
 
     def __init__(self,ports=None):
-        self.home = 4800
+        self.home = config.EQUILIBRIUM_POSITION
         self.port = config.MOTOR_ADDRESS
         self.pulse_equiv = config.PITCH * config.STEP_ANGLE / (360*config.SUBDIVISION)
         self.max_xpos = config.MAXIMUM_STAGE_POSITION
@@ -694,42 +696,40 @@ class Motor():
         :param ports: list of available ports
         :type ports: list, string
         """
-        if not ports: ports = self.port
+        if not ports: 
+            ports = self.port
 
         if not isinstance(ports,list):
             ports = [ports]
-        command = '?R'
 
-        logger.debug('Attempting to connect to the motor...')
+        rm = visa.ResourceManager()
         for port in ports:
-            if self.status:      #stop searching if the instrument has already been found
-                break
-
-            for i in range(1,self.maxtry):
+            logger.debug('Searching for motor at {}...'.format(port))
+                   
+            for i in range(0,config.GLOBAL_MAXTRY):
                 try:
-                    logger.debug('    Trying {}...'.format(port))
-                    rm = visa.ResourceManager()
                     self.Ins = rm.open_resource(port)
-                    tmp = self.Ins.query_ascii_values(command,converter='s')[0]
+                    if not self.is_connected():
+                        raise InstrumentConnectionError('Not at port {}'.format(port))
                 except Exception as e:
-                    if i == self.maxtry:
-                        logger.debug('    Trying {}... unsuccessful'.format(port))
-                        logger.debug('    {}'.format(e))
+                    if i == config.GLOBAL_MAXTRY-1:
+                        logger.debug('{} {}'.format(e,port))
+                        logger.info('{} {}'.format(e,port))
+                        self.status = False
                 else:
-                    if tmp == '?R\rOK\n':
-                        self.status = True
-                        logger.info('    MOT - CONNECTED!')
-                        break
+                    logger.info('{} connected at {}'.format(self.__class__.__name__,port))
+                    self.status = True
+                    return
 
-        if not self.status:
-            logger.error('    MOT - FAILED (check log for details)')
+    def is_connected(self):
+        if self.Ins.query_ascii_values('?R',converter='s')[0] == '?R\rOK\n':
+            return True 
 
     def center(self):
         """Moves stage to the absolute center"""
         return self.position(self.max_xpos/2)
 
     def get_settings(self):
-        settings = ['baudrate','bytesize','parity','stopbits','timeout']
         output = {'baudrate':self.Ins.baud_rate,
                   'bytesize':self.Ins.data_bits,
                   'parity':self.Ins.parity._name_,
@@ -827,7 +827,7 @@ class Motor():
 
     def _write(self,command,message):
         c=0
-        while c <= self.maxtry:
+        while c <= config.GLOBAL_MAXTRY:
             try:
                 self.Ins.clear()
                 tmp = self.Ins.query_ascii_values(command,converter='s')
@@ -835,7 +835,7 @@ class Motor():
                     logger.debug('\t{}...'.format(message))
                     return True
             except Exception as e:
-                if c >= self.maxtry:
+                if c >= config.GLOBAL_MAXTRY:
                     logger.error('\tError: "{}" failed! Check log for details'.format(message))
                     logger.debug('Error message: {}'.format(e))
                     return False
@@ -843,7 +843,7 @@ class Motor():
 
     def _read(self,command,message):
         c=0
-        while c <= self.maxtry:
+        while c <= config.GLOBAL_MAXTRY:
             try:
                 self.Ins.clear()
                 tmp = self.Ins.query_ascii_values(command,converter='s')
@@ -851,7 +851,7 @@ class Motor():
                     logger.debug('\t{}...'.format(message))
                     return int(''.join(x for x in tmp[0] if x.isdigit()))
             except Exception as e:
-                if c >= self.maxtry:
+                if c >= config.GLOBAL_MAXTRY:
                     logger.error('\tError: "{}" failed! Check log for details'.format(message))
                     logger.debug('Error message: {}'.format(e))
                     return False
@@ -1035,11 +1035,11 @@ class GasControllers():
             self.h2 = AlicatController(port=self.port, address='D', name='h2', upper_limit=config.H2_UPPER_LIMIT, precision=config.H2_PRECISION)
 
         except Exception as e:
-            logger.error('    GAS - FAILED (check log for details)')
+            logger.error('Gas - FAILED (check log for details)')
             logger.debug(e)
             self.status = False
         else:
-            logger.info('    GAS - CONNECTED!')
+            logger.info('Gas connected at {}'.format(self.port))
             self.all = [self.co2,self.co_a,self.co_b,self.h2]
             self.status = True
 
