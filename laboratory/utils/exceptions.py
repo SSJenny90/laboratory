@@ -12,3 +12,6 @@ class InstrumentConnectionError(Error):
 
 class SetupError(Error):
     pass
+
+class CalibrationError(Error):
+    pass
