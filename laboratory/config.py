@@ -2,8 +2,8 @@
 This is a configuration file for setting up the laboratory. It contains settings to set the name of the the experiment, sample dimensions, instrument addresses and physical constants. Experiment name and sample dimensions should be modified with each new experiment. Everything else can remain as is unless the physical setup of the lab has changed.
 """
 import os
-from laboratory import calibration
 from datetime import datetime
+
 #if you wish to receive email updates when the program completes each step
 EMAIL = 'samuel.jennings@adelaide.edu.au'
 
@@ -57,7 +57,8 @@ LCR_ADDRESS = 'USB0::0x0957::0x0909::MY46312484::INSTR'
 #-------------------Furnace settings-------------------
 FURNACE_ADDRESS = 'COM8'
 RESET_TEMPERATURE = 40       #temperature the furnace resets to
-OPEN_FURNACE_CORRECTION = calibration.get_furnace_correction(os.path.join(CALIBRATION_DIR,'open_furnace_correction.pkl'))
+# OPEN_FURNACE_CORRECTION = calibration.get_furnace_correction(os.path.join(CALIBRATION_DIR,'open_furnace_correction.pkl'))
+OPEN_FURNACE_CORRECTION = 'open_furnace_correction.pkl'
 
 #-------------------Motor settings-------------------
 MOTOR_ADDRESS = 'COM5'
@@ -65,7 +66,8 @@ SUBDIVISION = 2  #from back of motion controller
 STEP_ANGLE = 0.9  #from the side of the motor
 PITCH = 4        #in mm - from the optics focus website
 MAXIMUM_STAGE_POSITION = 10000
-EQUILIBRIUM_POSITION = calibration.get_equilibrium_position(os.path.join(CALIBRATION_DIR,'furnace_profile.pkl'))
+# EQUILIBRIUM_POSITION = calibration.get_equilibrium_position(os.path.join(CALIBRATION_DIR,'furnace_profile.pkl'))
+EQUILIBRIUM_POSITION = 'furnace_profile.pkl'
 
 #-------------------Gas settings-------------------
 MFC_ADDRESS = 'COM6'    #for windows
