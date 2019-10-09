@@ -339,24 +339,24 @@ class Experiment(Laboratory):
         logger.debug('Calculating required co2:{} mix...'.format(step.fo2_gas))
         mean_temp = (self.data['daq']['thermo_1'][-1] + self.data['daq']['thermo_2'][-1])/2
         log_fugacity = self.gas.fo2_buffer(mean_temp,step.buffer) + step.offset
-        gas = {'co2':0,'co_a':0,'co_b':0,'h2':0}
 
         if step.fo2_gas == 'h2':
             ratio = self.gas.fugacity_h2(log_fugacity,mean_temp)
-            gas['h2'] = 10
-            gas['co2'] = round(gas['h2']*ratio,2)
+            self.gas.set_all({  'h2':10,
+                                'co2':round(gas['h2']*ratio,2)
+                                })
 
         elif step.fo2_gas == 'co':
             ratio = self.gas.fugacity_co(log_fugacity,mean_temp)
             co2 = 50    #set 50 sccm as the optimal co2 flow rate
             if co2/ratio >= 20:
                 co2 = round(20*ratio,2)
-            gas['co2'] = co2
-
             co = co2/ratio
-            gas['co_a'] = int(co)
-            gas['co_b'] = round(co - gas['co_a'],3)
-
+            
+            self.gas.set_all({  'co2':co2,
+                                'co_a':int(co),
+                                'co_b':round(co - gas['co_a'],3)
+                                })
         else:
             logger.error('Incorrect gas type specified!')
             return False
