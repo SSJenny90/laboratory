@@ -11,7 +11,7 @@ calibration_files/
 launch.json
 test_experiment.py
 test_load.py
-
+settings.json
 
 
 # Compiled source #
