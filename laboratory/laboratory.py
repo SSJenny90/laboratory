@@ -1,6 +1,6 @@
 from . import config
 from . import drivers
-from laboratory.utils import loggers, notifications, plotting, data, utils
+from laboratory.utils import loggers, notifications, data, utils
 from laboratory.utils.exceptions import SetupError
 from laboratory.widgets import CountdownTimer, ProgressBar 
 logger = loggers.lab(__name__)
@@ -26,7 +26,7 @@ class Laboratory():
         self._delayed_start = None
         if filename:
             self.load_data(filename)
-            self.plot = plotting.LabPlots(self.data)
+            # self.plot = plotting.LabPlots(self.data)
         else:
             self.data = self.data_dict()
             self.load_instruments()
@@ -199,6 +199,16 @@ class Laboratory():
 
         self.controlfile = controlfile
 
+    def load_instruments(self):
+        """Loads the laboratory instruments. Called automatically when calling Setup() without a filename specified.
+
+        :returns: lcr, daq, gas, furnace, motor
+        :rtype: instrument objects
+        """
+        logger.info('Establishing connection with instruments...\n')
+        self.lcr, self.daq, self.gas, self.furnace, self.motor = drivers.connect()
+        print('')
+
 class Experiment(Laboratory):
     """ 
     Sets up the laboratory
@@ -308,16 +318,6 @@ class Experiment(Laboratory):
             #check to see if it's time to begin the next loop
             if utils.break_measurement_cycle(step, self.data['furnace']['indicated'][-1], self.data['step_time'][-1]):
                 return True
-
-    def load_instruments(self):
-        """Loads the laboratory instruments. Called automatically when calling Setup() without a filename specified.
-
-        :returns: lcr, daq, gas, furnace, motor
-        :rtype: instrument objects
-        """
-        logger.info('Establishing connection with instruments...\n')
-        self.lcr, self.daq, self.gas, self.furnace, self.motor = drivers.connect()
-        print('')
 
     def backup(self):
         self.progress_bar.update('Saving backup file...')
@@ -460,6 +460,8 @@ class Experiment(Laboratory):
 
         #save to data_dict
         for key, val in vals.items():
+            if val is None: #required for loading from text file
+                val = 'nan'
             self.data[data_type][key].append(val) 
 
         #save to log file
