@@ -6,6 +6,13 @@ import pandas as pd
 import pickle
 import re
 import os 
+
+# def dataframe():
+#     column_names = ['time','indicated_temp','target_temp','ref_temp','thermo_1','thermo_2','voltage','x_position','h2','co2','co_a','co_b','z','theta','fugacity','ratio','offset']
+
+
+
+
 def data_dict():
     return {'furnace': {
                 'indicated':[],
@@ -54,9 +61,9 @@ def process_data(data):
 
 def load_data(filename):
     if filename.endswith('.txt'):
-         return process_data(_load_text('laboratory/datafiles/' + filename))
+         return process_data(_load_text(filename))
     elif filename.endswith('.pkl'):
-         return process_data(_load_pkl('laboratory/datafiles/' + filename))
+         return process_data(_load_pkl(filename))
     else:
         raise ValueError('Unsupported filetype! Must be .txt or .pkl')
 
@@ -95,19 +102,13 @@ def _load_text(filename):
             line_id = line[0]
             vals = line[1:]
 
-            if line_id == 'D':       
-                if len(vals) == 2:
-                    data['time'].append(dt.strptime('_'.join(vals),'%H:%M.%S_%d-%m-%Y'))
-                else:
-                    append_data('daq',['reference','thermo_1','thermo_2','voltage'],vals)
+            if line_id == 'DAQ'[0]:       
+                append_data('daq',['reference','thermo_1','thermo_2','voltage'],vals)
 
-            # if line_id == 'Time'[0]:
-            #     data['time'].append(dt.strptime('_'.join(vals),'%H:%M.%S_%d-%m-%Y'))
+            elif line_id == 'T':
+                data['time'].append(dt.strptime('_'.join(vals),'%H:%M.%S_%d-%m-%Y'))
 
-            # elif line_id == 'DAQ'[0]:
-            #     append_data('daq',['reference','thermo_1','thermo_2','voltage'],vals)
-
-            elif line_id == 'Step Time'[0]:
+            elif line_id == 'ST':
                 data['step_time'].append(dt.strptime('_'.join(vals),'%H:%M.%S_%d-%m-%Y'))
 
             elif line_id == 'Gas'[0]:
@@ -153,7 +154,7 @@ def save_obj(obj, filename):
     :type filename: str
     """
     filename = filename.split('.')[0]
-    with open(os.join(config.DATA_DIR,filename + '.pkl'), 'wb') as output:  # Overwrites any existing file.
+    with open(os.path.join(config.DATA_DIR,filename + '.pkl'), 'wb') as output:  # Overwrites any existing file.
         pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
 
 def load_frequencies(min,max,n,log,filename):
