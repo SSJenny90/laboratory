@@ -148,10 +148,8 @@ class Experiment(Laboratory):
         super().__init__(filename,debug)
         self.settings = {}
 
-
     def get_empty_dataframe(self):
-        column_names = ['time','indicated','target','reference','thermo_1','thermo_2','voltage','x_position','h2','co2','co_a','co_b','z','theta','fugacity','ratio']
-
+        column_names = ['time','indicated','target','reference','thermo_1','thermo_2','voltage','x_position','h2','co2','co','z','theta','fugacity','ratio']
         return pd.DataFrame(columns=column_names)
 
     def run(self,controlfile=False):
@@ -284,9 +282,13 @@ class Experiment(Laboratory):
         """
         message = 'Getting gas readings'
         self.progress_bar.update(message)
-        logger.debug(message)
-        for gas in ['h2','co2','co_a','co_b']:
-            self.measurement[gas] = getattr(self.gas,gas).mass_flow()
+        logger.debug(message)      
+        self.measurement['h2'] = self.gas.h2.mass_flow()
+        self.measurement['co2'] = self.gas.co2.mass_flow()
+        self.measurement['co'] = self.gas.co_a.mass_flow() + self.gas.co_b.mass_flow()
+
+        # for gas in ['h2','co2','co_a','co_b']:
+        #     self.measurement[gas] = getattr(self.gas,gas).mass_flow()
 
     def get_furnace(self):
         """Retrieves the indicated temperature of the furnace and saves to Data structure and file
