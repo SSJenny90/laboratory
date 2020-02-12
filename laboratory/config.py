@@ -8,14 +8,14 @@ from datetime import datetime
 EMAIL = 'samuel.jennings@adelaide.edu.au'
 
 #-------------------Experiment settings-------------------
-PROJECT_NAME = 'High-T test run'
+PROJECT_NAME = 'Test'
 SAMPLE_THICKNESS = 2.6 #in mm
 SAMPLE_DIAMETER = 12.7 #in mm
 SAMPLE_AREA = 97.686 #in mm^2 - ONLY SET IF SAMPLE IS NOT A COMPLETE DISK AND AREA MUST BE CALCULATED MANUALLY
 
 MINIMUM_FREQ = 20       #in Hz
 MAXIMUM_FREQ = 2000000  #in Hz (2MHz)
-FREQ_LOG_SCALE = True
+FREQ_LOG_SCALE = False
 FREQUENCY_LIST = []
 
 DEBUG = False
@@ -34,6 +34,7 @@ START_TIME = datetime(  year=2019,
 #-------------------Folder defaults-------------------
 ROOT = os.getcwd()
 DATA_DIR = os.path.join(ROOT,'data')
+# DATA_DIR = "C:\\Users\\a1654095\\Google Drive\\Sam_Jennings\\PhD"
 LOG_DIR = os.path.join(ROOT,'log')
 CALIBRATION_DIR = os.path.join(ROOT,'laboratory/calibration')
 
@@ -55,13 +56,13 @@ VOLTAGE_INTEGRATION_TIME = 1   #in cycles
 LCR_ADDRESS = 'USB0::0x0957::0x0909::MY46312484::INSTR'
 
 #-------------------Furnace settings-------------------
-FURNACE_ADDRESS = 'COM8'
+FURNACE_ADDRESS = 'COM5'
 RESET_TEMPERATURE = 40       #temperature the furnace resets to
 # OPEN_FURNACE_CORRECTION = calibration.get_furnace_correction(os.path.join(CALIBRATION_DIR,'open_furnace_correction.pkl'))
 OPEN_FURNACE_CORRECTION = 'open_furnace_correction.pkl'
 
 #-------------------Motor settings-------------------
-MOTOR_ADDRESS = 'COM5'
+MOTOR_ADDRESS = 'COM8'
 SUBDIVISION = 2  #from back of motion controller
 STEP_ANGLE = 0.9  #from the side of the motor
 PITCH = 4        #in mm - from the optics focus website
@@ -72,14 +73,23 @@ EQUILIBRIUM_POSITION = 'furnace_profile.pkl'
 #-------------------Gas settings-------------------
 MFC_ADDRESS = 'COM6'    #for windows
 # MFC_ADDRESS = '/dev/tty.SLAB_USBtoUART'   #for mac
-H2_UPPER_LIMIT = 50
-H2_PRECISION = 2
-CO2_UPPER_LIMIT = 200
-CO2_PRECISION = 2
-CO_A_UPPER_LIMIT = 50
-CO_A_PRECISION = 2
-CO_B_UPPER_LIMIT = 2
-CO_B_PRECISION = 3
+
+CO2 = { 'address':'A',
+        'upper_limit': 200,
+        'precision':2}
+
+CO_A = {'address':'B',
+        'upper_limit': 50,
+        'precision':2}
+
+CO_B = {'address':'C',
+        'upper_limit': 2,
+        'precision':3}
+
+H2 = {  'address':'D',
+        'upper_limit': 50,
+        'precision':2}
+
 
 
 
