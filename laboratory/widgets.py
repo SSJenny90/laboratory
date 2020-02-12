@@ -36,7 +36,7 @@ class ProgressBar():
         sys.stdout.write('\r{}|{}| {}{} - {}             '.format(pre_message,bar, percentage, '%',post_message))
 
         if self.iteration == self.length:
-            sys.stdout.write('\r{}|{}| {}{} - {}             '.format(pre_message,bar, percentage, '%','Complete!\n'))
+            sys.stdout.write('\r{}|{}| {}{} - {}             '.format(pre_message,bar, percentage, '%','Complete!                \n'))
             # sys.stdout.write('')
 
         sys.stdout.flush()
@@ -78,7 +78,6 @@ class CountdownTimer():
             start_time = datetime.now()
 
         end_time = start_time + timedelta(**wait_time)
-        print('')
         while (end_time-datetime.now()).total_seconds() > 0:
             sys.stdout.write('\r{} {}'.format(message,str(end_time-datetime.now())[:7]))
             sys.stdout.flush()
