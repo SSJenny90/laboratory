@@ -34,7 +34,7 @@ from laboratory import config
 
 def circle_fit(x,y,ax):
 
-    R = leastsq_circle(x,y)[2]
+    xc,yc,R = leastsq_circle(x,y)[:3]
 
     pi = np.pi
     theta_fit = np.linspace(0, pi, 180)   #semi circle
@@ -50,19 +50,18 @@ def impedance_fit(Z,theta):
     Z = np.array(Z)
     theta = np.array(theta)
 
-    x = np.multiply(Z,np.cos(theta))
-    y = np.multiply(Z,np.sin(theta))
+    x = np.flipud(np.multiply(Z,np.cos(theta)))
+    y = np.flipud(np.multiply(Z,np.sin(theta)))
 
-    x = np.flipud(x)
-    y = np.flipud(y)
+    print(x)
 
     i = 20
-    for i in range(i, len(x)):
-        if y[i] - y[i-1] > y[i-1] - y[i-2]:
+    for i in range(i, len(x)-1):
+        if y[i+1] - y[i] > y[i] - y[i-1]:
             break
 
-    i = i-1
     A = x[:i]*2
+    print(A)
     r = np.dot(A,A)**-1 * np.dot(A,(x[:i]**2 + y[:i]**2))
     diameter = 2*r
 
@@ -127,13 +126,10 @@ def voltage(data,kwargs={}):
     """Plots voltage versus time"""
     fig = plt.figure('Voltage')
     ax = fig.add_subplot(111,**kwargs)
-
-    ax.plot(data['time_elapsed'],data['daq']['voltage'],'rx')
-
+    ax.plot(data['time_elapsed'],data['voltage'],'rx')
     ax.set_ylabel('Voltage [mV]')
     ax.tick_params(direction='in')
     ax.set_xlabel('Time Elapsed [hours]')
-
     plt.show()
 
 def cond_time(data,kwargs={}):
@@ -157,10 +153,10 @@ def temperature(data,kwargs={}):
     ax = fig.add_subplot(111,**kwargs)
 
     # ax.plot(data['time_elapsed'],thermo.tref,'r-')
-    ax.plot(data['time_elapsed'],data['daq']['thermo_1'],'b.',label='Te1')
-    ax.plot(data['time_elapsed'],data['daq']['thermo_2'],'g.',label='Te2')
-    ax.step(data['time_elapsed'],data['furnace']['target'],'y',linestyle='--',label='Target temperature')
-    ax.plot(data['time_elapsed'],data['furnace']['indicated'],'m',label='Furnace indicated')
+    ax.plot(data['time_elapsed'],data['thermo_1'],'b.',label='Te1')
+    ax.plot(data['time_elapsed'],data['thermo_2'],'g.',label='Te2')
+    ax.step(data['time_elapsed'],data['target'],'y',linestyle='--',label='Target temperature')
+    ax.plot(data['time_elapsed'],data['indicated'],'m',label='Furnace indicated')
 
     # ax.text(0,thermo.tref[0]+5,'Tref',color='red')
     # ax.text(0,thermo.target[0]+5,'Target',color='y')
@@ -186,9 +182,9 @@ def cole(data,temp_list,start=0,end=None,fit=False,**kwargs):
         temp_list = [temp_list]
 
     for temp in temp_list:
-        [index, Tval] = index_temp(np.array(data['daq']['thermo_1']),temp)
-        Z = data['lcr']['z'][index][start:end]
-        theta = data['lcr']['theta'][index][start:end]
+        [index, Tval] = index_temp(np.array(data['thermo_1']),temp)
+        Z = data['z'][index][start:end]
+        theta = data['theta'][index][start:end]
         Re,Im = get_Re_Im(Z,theta)
 
         p = ax.scatter(Re,Im,c=data['freq'][start:end],norm=colors.LogNorm())
@@ -211,37 +207,27 @@ def cole(data,temp_list,start=0,end=None,fit=False,**kwargs):
 
     cb = fig.colorbar(p,ax=ax,orientation="horizontal")
     cb.set_label('Frequency')
-    cb.ax.invert_xaxis()
+    # cb.ax.invert_xaxis()
 
     plt.show()
 
 def gas(data):
     "Plots mass_flow data for all gases versus time elapsed"
-    h2 = np.asarray(data['gas']['h2']['mass_flow'])
-    co2 = np.asarray(data['gas']['co2']['mass_flow'])
-    co_a = np.asarray(data['gas']['co_a']['mass_flow'])
-    co_b = np.asarray(data['gas']['co_b']['mass_flow'])
-
-    # fig = plt.figure()
-    # ax1 = fig.add_subplot(211)
     fig, (ax1, ax2) = plt.subplots(nrows=2, sharex=True)
 
-    ax1.plot(data['time_elapsed'],h2,'m.',label='H2')
-    ax1.plot(data['time_elapsed'],co2,'b.',label='CO2')
-    ax1.plot(data['time_elapsed'],np.add(co_a,co_b),'g.',label='CO_total')
+    ax1.plot(data['time_elapsed'],data['h2'],'m.',label='H2')
+    ax1.plot(data['time_elapsed'],data['co2'],'b.',label='CO2')
+    ax1.plot(data['time_elapsed'],data['co'],'g.',label='CO_total')
 
     ax1.set_ylabel('Mass Flow [SCCM]')
-    # ax1.tick_params(direction='in')
     ax1.set_ylim(bottom=0)
     ax1.set_xlim(left=0)
     ax1.set_title('Gas levels')
     ax1.legend()
 
-    # ax2 = fig.add_subplot(212)
-    ax2.plot(data['time_elapsed'],data['fugacity']['fugacity'],'r--',label='Log[Fugacity]')
+    ax2.plot(data['time_elapsed'],data['fugacity'],'r--',label='Log[Fugacity]')
     ax2.set_xlabel('Time elapsed [hours]')
     ax2.set_ylabel('log fo2p [Pascals]')
-    # ax2.tick_params(direction='in')
 
     fig.tight_layout()
     plt.show()
@@ -250,20 +236,18 @@ def imp_diameter(data):
     """Plots the impedance diameter against time_elapsed"""
 
     diameter = []
-    for i in range(len(data['lcr']['z'])):
-        z = data['lcr']['z'][i]
-        theta = data['lcr']['theta'][i]
+    for i in range(len(data['z'])):
+        z = data['z'][i]
+        theta = data['theta'][i]
         diameter.append(impedance_fit(z[1:],theta[1:]))
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
 
-    ax.plot(data['time_elapsed'],diameter,'r.')
+    ax.plot(data['time_elapsed'],diameter,'r')
 
     ax.set_xlabel('Time Elapsed [hours]')
     ax.set_ylabel(r'$Diameter [\Omega$]')
-
-    plt.show()
 
 def arrhenius(data):
     """Plots inverse temperature versus conductivity"""
