@@ -4,6 +4,12 @@ class Error(Exception):
 class InstrumentError(Error):
     pass
 
+class InstrumentReadError(InstrumentError):
+    pass
+
+class InstrumentWriteError(InstrumentError):
+    pass
+
 class InstrumentCommunicationError(Error):
     pass
 
