@@ -1,8 +1,0 @@
-pyserial
-pyvisa
-minimalmodbus
-alicat
-matplotlib
-numpy
-pandas
-scipy
