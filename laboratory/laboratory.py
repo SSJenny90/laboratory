@@ -1,5 +1,5 @@
-from . import config
-from . import drivers
+from laboratory import config
+from laboratory import drivers
 from laboratory.utils import loggers, notifications, data, utils
 from laboratory.utils.exceptions import SetupError
 from laboratory.widgets import CountdownTimer, ProgressBar 
@@ -10,11 +10,7 @@ import sys
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from pprint import pprint
-
-
-plt.ion()
 
 class Laboratory():
 
@@ -22,13 +18,10 @@ class Laboratory():
         logger.debug('-------------------------------------------')
         self._debug = debug
         self.debug = config.DEBUG
-        self.dlogger = None
         self._delayed_start = None
         if filename:
             self.load_data(filename)
-            # self.plot = plotting.LabPlots(self.data)
         else:
-            self.data = self.data_dict()
             self.load_instruments()
 
     @property
@@ -45,67 +38,6 @@ class Laboratory():
         else:
             logger.handlers[1].setLevel('INFO')
             self._debug = False
-
-    def data_dict(self):
-        return {'furnace': {
-                    'indicated':[],
-                    'target':[],},
-                'daq': {
-                    'reference':[],
-                    'thermo_1':[],
-                    'thermo_2':[],
-                    'voltage':[]},
-                'motor': {
-                    'position': []},
-                'gas': {
-                    'h2': [],
-                    'co_a': [],     # 0-50 SCCM
-                    'co_b': [],     # 0-2 SCCM
-                    'co2': []},
-                'lcr': {
-                    'z': [],
-                    'theta': []},
-                'file_name': '',
-                'time': [],
-                'step_time':[],
-                'fugacity': {   'fugacity': [],
-                                'ratio': [],
-                                'offset': []},
-                'freq':None}
-
-    def load_frequencies(self,min_f=config.MINIMUM_FREQ,max_f=config.MAXIMUM_FREQ,n=50,log=config.FREQ_LOG_SCALE):
-        """Loads an np.array of frequency values.
-
-        :param n: number of desired frequencies
-        :type n: int
-
-        :param min_f: minimum frequency (Hz) - may not be below default value of 20 Hz
-        :type min_f: int,float
-
-        :param max_f: maximum frequency (Hz) - may not exceed default value of 2*10^6 Hz
-        :type max_f: int,float
-
-        :param log: specifies whether array is created in linear or log space. default to logspace
-        :type log: boolean
-
-        :Example:
-
-        >>> lab = Laboratory.Setup()
-        >>> lab.load_frequencies(min=1000, max=10000, n=10)
-        >>> print(lab.data.freq)
-        [1000 2000 3000 4000 5000 6000 7000 8000 9000 10000]
-        >>> lab.load_frequencies(min=1000, max=10000, n=10, log=True)
-        >>> print(lab.data.freq)
-        [1000 1291.55 1668.1 2154.43 2782.56 3593.81 4641.59 5994.84 7742.64 10000]"""
-
-        logger.debug('Creating frequency data...')
-
-        if config.FREQUENCY_LIST:
-            self.data['freq'] = np.array(config.FREQUENCY_LIST)
-        elif log:
-            self.data['freq'] = np.around(np.geomspace(min_f,max_f,n))
-        else:
-            self.data['freq'] = np.around(np.linspace(min_f,max_f,n))
 
     def load_data(self,filename):
         """loads a previous data file for processing and analysis
@@ -131,11 +63,14 @@ class Laboratory():
 
     def header(self,step,i):
         finish_time = 'Estimated finish: '+ datetime.strftime(datetime.now() + timedelta(minutes=step.est_total_mins),'%H:%M %A, %b %d')
-            
-        logger.info('='*len(finish_time))
-        logger.info('Step {}:'.format(i+1))
+
+        logger.info('Step {}:\n'.format(i+1))
+        utils.print_df(self.controlfile.iloc[[i]])
         logger.info(finish_time)
-        logger.info('='*len(finish_time))
+
+
+
+
 
     def instrument_errors(self,email_alert=False):
         """Checks the status of all devices. If desired, this function can send an email when something has become disconnected
@@ -155,50 +90,6 @@ class Laboratory():
         """Attempts to reconnect to any instruments that have been disconnected"""
         drivers.reconnect(self)
 
-    def begin(self):
-        self.daq.get_temp()
-        temp_str = '{:0.1f}'.format(self.daq.mean_temp)
-        logger.debug('Collecting measurements @ {} degC...'.format(temp_str))
-        self.progress_bar.pre_message = '@{}C'.format(temp_str)
-        self.save_time()
-
-    def setup(self,controlfile):
-        """Conducts necessary checks before running an experiment abs
-
-        :param controlfile: name of control file for the experiment
-        :type controlfile: string
-        """
-        if not controlfile:
-            raise SetupError('You must specify a valid control file!')
-        else:
-            controlfile = pd.read_excel(controlfile,header=1)
-
-        if not utils.check_controlfile(controlfile):
-            raise SetupError('Incorrect control file format!')
-
-        self.load_frequencies()
-        if self.data['freq'] is None:
-            raise SetupError('No frequencies have been selected for measurement')
-
-        #set up the data logger
-        self.dlogger = loggers.data()
-        self.dlogger.critical('frequencies: {}\n'.format(self.data['freq'].tolist()))
-        self.data['filename'] = self.dlogger.handlers[0].baseFilename
-
-        #configure instruments
-        self.lcr.configure(self.data['freq'])
-
-        #add some useful columns to control file
-        controlfile['previous_target'] = controlfile.target_temp.shift()
-        controlfile.loc[0,'previous_target'] = self.furnace.setpoint_1()
-        controlfile['previous_heat_rate'] = controlfile.heat_rate.shift()
-        controlfile.loc[0,'previous_heat_rate'] = self.furnace.heating_rate()
-        controlfile['est_total_mins'] = np.abs((controlfile.target_temp - controlfile.previous_target)/controlfile.heat_rate + controlfile.hold_length * 60).astype(int)
-
-        utils.print_df(controlfile)
-
-        self.controlfile = controlfile
-
     def load_instruments(self):
         """Loads the laboratory instruments. Called automatically when calling Setup() without a filename specified.
 
@@ -208,6 +99,17 @@ class Laboratory():
         logger.info('Establishing connection with instruments...\n')
         self.lcr, self.daq, self.gas, self.furnace, self.motor = drivers.connect()
         print('')
+
+    def shut_down(self):
+        """Returns the furnace to a safe temperature and closes ports to both the DAQ and LCR. (TODO need to close ports to motor and furnace)
+        """
+        #TODO save some information about where to start the next file
+        logger.critical("Shutting down the lab...")
+        self.furnace.shutdown()
+        self.daq.shutdown()
+        self.lcr.shutdown()
+        self.gas.reset_all()
+        logger.critical("Shutdown successful")
 
 class Experiment(Laboratory):
     """ 
@@ -244,7 +146,14 @@ class Experiment(Laboratory):
     """
     def __init__(self,filename=None,debug=False):
         super().__init__(filename,debug)
-    
+        self.settings = {}
+
+
+    def get_empty_dataframe(self):
+        column_names = ['time','indicated','target','reference','thermo_1','thermo_2','voltage','x_position','h2','co2','co_a','co_b','z','theta','fugacity','ratio']
+
+        return pd.DataFrame(columns=column_names)
+
     def run(self,controlfile=False):
         """
         starts a new set of measurements. requires a control file that contains
@@ -254,14 +163,14 @@ class Experiment(Laboratory):
         :param controlfile: path to control file
         :type controlfile: str
         """
-        self.data = self.data_dict()
-
         self.setup(controlfile)
-
         self.delayed_start(config.START_TIME)
 
         # iterate through control file until finished
         for i,step in self.controlfile.iterrows():
+            self.data = self.get_empty_dataframe()
+
+
             self.header(step,i)
 
             #set the required heating rate if a change is needed
@@ -272,15 +181,18 @@ class Experiment(Laboratory):
             print('')
 
             #save the start time of this step
-            self.save_time('S')
+            step['time'] = datetime.now()
 
             #enter the main measurement loop
             if self.measurement_cycle(step):
                 logger.info('Step {} complete!'.format(i+1))
-                print('')
-                if i < self.controlfile.shape[0]-1:
-                    est_completion = datetime.strftime(datetime.now() + timedelta(minutes=step.est_total_mins),'%H:%M %A, %b %d')
-                    notifications.send_email(notifications.Messages.step_complete.format(i+1,self.controlfile.loc[i+1,'target_temp'],i+2,i+2,est_completion))
+                self.export_data(i,step)
+
+
+
+                # if i < self.controlfile.shape[0]-1:
+                #     est_completion = datetime.strftime(datetime.now() + timedelta(minutes=step.est_total_mins),'%H:%M %A, %b %d')
+                #     notifications.send_email(notifications.Messages.step_complete.format(i+1,self.controlfile.loc[i+1,'target_temp'],i+2,i+2,est_completion))
             else:
                 logger.critical('Something wen\'t wrong!')
                 break
@@ -296,7 +208,8 @@ class Experiment(Laboratory):
  
         self.furnace.timer_duration(minutes=3.5*step.interval)
         while True:
-            self.progress_bar = ProgressBar(length=7+len(self.data['freq']), hide=self.debug)
+            self.measurement = {}
+            self.progress_bar = ProgressBar(length=6+len(self.settings['freq']), hide=self.debug)
             self.furnace.reset_timer()
 
             #get a suite of measurements
@@ -304,23 +217,33 @@ class Experiment(Laboratory):
             self.get_stage_position()
             self.get_furnace()
             self.get_daq()
-            self.get_gas()
             self.set_fugacity(step)
+            self.get_gas()
             self.get_impedance()
+            self.data = self.data.append(self.measurement,ignore_index=True)
             self.backup()
 
-            CountdownTimer(hide=self.debug).start({'minutes':step.interval},self.data['time'][-1], message='Next measurement in...')
+            CountdownTimer(hide=self.debug).start({'minutes':step.interval},self.measurement['time'], message='Next measurement in...')
 
             #check to make sure everything is connected
             if self.instrument_errors():
                 return
 
             #check to see if it's time to begin the next loop
-            if utils.break_measurement_cycle(step, self.data['furnace']['indicated'][-1], self.data['step_time'][-1]):
+            if utils.break_measurement_cycle(step, self.measurement['indicated'], step['time']):
                 return True
 
+    def begin(self):
+
+        self.mean_temp = self.daq.mean_temp
+        logger.debug('Collecting measurements @ {} degC...'.format(str(self.mean_temp)))
+        self.progress_bar.pre_message = '@{}C'.format(str(self.mean_temp))
+        self.measurement['time'] = datetime.now()
+
     def backup(self):
-        self.progress_bar.update('Saving backup file...')
+        message = 'Saving backup file...'
+        self.progress_bar.update(message)
+        logger.debug(message)
         data.save_obj(self.data,config.PROJECT_NAME)
 
     def set_fugacity(self,step):
@@ -337,34 +260,18 @@ class Experiment(Laboratory):
             """
         self.progress_bar.update('Calculating required co2:{} mix...'.format(step.fo2_gas))
         logger.debug('Calculating required co2:{} mix...'.format(step.fo2_gas))
-        mean_temp = (self.data['daq']['thermo_1'][-1] + self.data['daq']['thermo_2'][-1])/2
-        log_fugacity = self.gas.fo2_buffer(mean_temp,step.buffer) + step.offset
+        log_fugacity, ratio = self.gas.set_to_buffer( buffer=step.buffer,
+                                offset= step.offset,
+                                temp=self.mean_temp, 
+                                gas_type=step.fo2_gas)
 
-        if step.fo2_gas == 'h2':
-            ratio = self.gas.fugacity_h2(log_fugacity,mean_temp)
-            self.gas.set_all({  'h2':10,
-                                'co2':round(gas['h2']*ratio,2)
-                                })
-
-        elif step.fo2_gas == 'co':
-            ratio = self.gas.fugacity_co(log_fugacity,mean_temp)
-            co2 = 50    #set 50 sccm as the optimal co2 flow rate
-            if co2/ratio >= 20:
-                co2 = round(20*ratio,2)
-            co = co2/ratio
-            
-            self.gas.set_all({  'co2':co2,
-                                'co_a':int(co),
-                                'co_b':round(co - gas['co_a'],3)
-                                })
-        else:
-            logger.error('Incorrect gas type specified!')
-            return False
-
-        self.save_data('fugacity',{'fugacity':log_fugacity,'ratio':ratio, 'offset':step.offset})
+        self.measurement = {**self.measurement,**{'fugacity':log_fugacity,'ratio':ratio}}
 
     def get_stage_position(self):
-        self.save_data('motor',{'position':self.motor.position()})
+        message = 'Getting stage position...'
+        self.progress_bar.update(message)
+        logger.debug(message)
+        self.measurement['x_position'] = self.motor.position()
 
     def get_gas(self):
         """Gets data from the mass flow controller specified by gas_type and saves to Data structure and file
@@ -375,10 +282,11 @@ class Experiment(Laboratory):
         :returns: [mass_flow, pressure, temperature, volumetric_flow, setpoint]
         :rtype: list
         """
-        vals = self.gas.get_all()
-        #save data to object and file
-        for k,v in vals.items():
-            [self.data['gas'][k].append(val) for key, val in v.items() if key == 'mass_flow']
+        message = 'Getting gas readings'
+        self.progress_bar.update(message)
+        logger.debug(message)
+        for gas in ['h2','co2','co_a','co_b']:
+            self.measurement[gas] = getattr(self.gas,gas).mass_flow()
 
     def get_furnace(self):
         """Retrieves the indicated temperature of the furnace and saves to Data structure and file
@@ -390,7 +298,11 @@ class Experiment(Laboratory):
         :param target: target temperature of current step
         :type target: float
         """
-        self.save_data('furnace',{'target':self.furnace.setpoint_1(),**self.furnace.indicated()})
+        message = 'Getting temperature data...'
+        self.progress_bar.update(message)
+        logger.debug(message)
+        self.measurement['target'] = self.furnace.setpoint_1()
+        self.measurement['indicated'] = self.furnace.indicated()
 
     def get_daq(self):
         """Retrieves thermopower data from the DAQ and saves to Data structure and file
@@ -398,73 +310,112 @@ class Experiment(Laboratory):
         :returns: [thermistor, te1, te2, voltage]
         :rtype: list
         """
-        self.save_data('daq',self.daq.get_thermopower())
+        message = 'Getting thermopower data'
+        self.progress_bar.update(message)
+        logger.debug(message)
+        self.measurement = {**self.measurement, **self.daq.get_thermopower()}
 
     def get_impedance(self):
         """Sets up the lcr meter and retrieves complex impedance data at all frequencies specified by Data.freq. Data is saved in Data.imp.z and Data.imp.theta as a list of length Data.freq. Values are also saved to the data file.
         """
         self.daq.toggle_switch('impedance')
-        
         logger.debug('Collecting impedance data from LCR meter...')
-        impedance_set = {'z':[],'theta':[]}
-        for _ in range(0,len(self.data['freq'])):
+        self.measurement = {**self.measurement,'z':[],'theta':[]}
+        for _ in range(0,len(self.settings['freq'])):
             self.progress_bar.update('Collecting impedance data...')
 
             #return a single line for each frequency value
             line = self.lcr.get_complex_impedance()
 
-            [impedance_set[key].append(val) for key, val in line.items()] 
-            self.dlogger.critical('Z {z} {theta}'.format(**line))
+            [self.measurement[key].append(val) for key, val in line.items()] 
 
         self.daq.toggle_switch('thermo')
-        self.save_data('lcr',impedance_set)
 
-    def save_time(self,prefix='D'):
-        """Takes input values and saves to both the current Data object and an external file
+    def setup(self,controlfile):
+        """Conducts necessary checks before running an experiment abs
 
-        :param vals: the values to be saved
-        :type vals: dictionary
-
-        :param gastype: [optional] required when saving gas data
-        :type gastype: str
+        :param controlfile: name of control file for the experiment
+        :type controlfile: string
         """
-        value = datetime.now()
-        if prefix == 'D':
-            self.data['time'].append(value)
-        elif prefix == 'S':
-            self.data['step_time'].append(value)
+        if not controlfile:
+            raise SetupError('You must specify a valid control file!')
+        else:
+            controlfile = pd.read_excel(controlfile,header=1)
 
-        self.dlogger.critical('{} {}'.format(prefix, datetime.strftime(value,'%H:%M.%S %d-%m-%Y')))
+        if not utils.check_controlfile(controlfile):
+            raise SetupError('Incorrect control file format!')
 
-    def shut_down(self):
-        """Returns the furnace to a safe temperature and closes ports to both the DAQ and LCR. (TODO need to close ports to motor and furnace)
-        """
-        #TODO save some information about where to start the next file
-        logger.critical("Shutting down the lab...")
-        self.furnace.shutdown()
-        self.daq.shutdown()
-        self.lcr.shutdown()
-        self.gas.shutdown()
-        logger.critical("success")
+        self.load_frequencies()
+        if self.settings['freq'] is None:
+            raise SetupError('No frequencies have been selected for measurement')
 
-    def save_data(self,data_type,vals):
-        self.progress_bar.update('Saving {} data...'.format(data_type))
-        logger.debug('Collecting and saving {} data...'.format(data_type))
+        #configure instruments
+        self.lcr.configure(self.settings['freq'])
+        # self.daq.configure()
 
-        formatting = {
-            'daq':      'D {reference} {thermo_1} {thermo_2} {voltage}',
-            'furnace':  'F {target} {indicated}',
-            'motor':    'M {position}',
-            'fugacity': 'X {fugacity:.5f} {ratio:.5f} {offset}',
-            }
+        #add some useful columns to control file
+        controlfile['previous_target'] = controlfile.target_temp.shift()
+        controlfile.loc[0,'previous_target'] = self.furnace.setpoint_1()
+        controlfile['previous_heat_rate'] = controlfile.heat_rate.shift()
+        controlfile.loc[0,'previous_heat_rate'] = self.furnace.heating_rate()
+        controlfile['est_total_mins'] = np.abs((controlfile.target_temp - controlfile.previous_target)/controlfile.heat_rate + controlfile.hold_length * 60).astype(int)
 
-        #save to data_dict
-        for key, val in vals.items():
-            if val is None: #required for loading from text file
-                val = 'nan'
-            self.data[data_type][key].append(val) 
+        utils.print_df(controlfile)
 
-        #save to log file
-        #LCR data is saved to file during the loop so don't save here
-        if not data_type == 'lcr':
-            self.dlogger.critical(formatting[data_type].format(**vals))
+        self.controlfile = controlfile
+
+    def load_frequencies(self,min_f=config.MINIMUM_FREQ,max_f=config.MAXIMUM_FREQ,n=50,log=config.FREQ_LOG_SCALE):
+        """Loads an np.array of frequency values.
+
+        :param n: number of desired frequencies
+        :type n: int
+
+        :param min_f: minimum frequency (Hz) - may not be below default value of 20 Hz
+        :type min_f: int,float
+
+        :param max_f: maximum frequency (Hz) - may not exceed default value of 2*10^6 Hz
+        :type max_f: int,float
+
+        :param log: specifies whether array is created in linear or log space. default to logspace
+        :type log: boolean
+
+        :Example:
+
+        >>> lab = Laboratory.Setup()
+        >>> lab.load_frequencies(min=1000, max=10000, n=10)
+        >>> print(lab.data.freq)
+        [1000 2000 3000 4000 5000 6000 7000 8000 9000 10000]
+        >>> lab.load_frequencies(min=1000, max=10000, n=10, log=True)
+        >>> print(lab.data.freq)
+        [1000 1291.55 1668.1 2154.43 2782.56 3593.81 4641.59 5994.84 7742.64 10000]"""
+
+        logger.debug('Creating frequency data...')
+
+        if config.FREQUENCY_LIST:
+            self.settings['freq'] = np.array(config.FREQUENCY_LIST)
+        elif log:
+            self.settings['freq'] = np.around(np.geomspace(min_f,max_f,n))
+        else:
+            self.settings['freq'] = np.around(np.linspace(min_f,max_f,n))
+
+    def export_data(self,i,step):
+        project_folder = os.path.join(config.DATA_DIR,config.PROJECT_NAME)
+        if not os.path.exists(project_folder):
+            os.mkdir(project_folder)
+
+        file_name = os.path.join(project_folder,'Step {}.csv'.format(i))
+
+        with open(file_name,'w',newline="") as f:
+            f.write('project_name: {}\n'.format(config.PROJECT_NAME))
+            f.write('start: {}\n'.format(datetime.strftime(step['time'],'%d %B %Y @ %H:%M:%S')))
+            for i in ['target_temp','interval','buffer','offset','fo2_gas']:
+                f.write('{}: {}\n'.format(i,step.get(i)))
+
+            f.write('frequencies: {}\n\n'.format(','.join(map(str, self.settings['freq']))))
+
+            self.data.to_csv(
+                path_or_buf = f,
+                sep= ',',
+                index=False,
+            )
+
