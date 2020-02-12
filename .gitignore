@@ -12,7 +12,8 @@ launch.json
 test_experiment.py
 test_load.py
 settings.json
-
+*.cpython-37.pyc
+*.txt
 
 # Compiled source #
 ###################
@@ -23,7 +24,7 @@ settings.json
 *.o
 *.so
 *.ini
-*.cpython-37.pyc
+
 
 # Packages #
 ############
