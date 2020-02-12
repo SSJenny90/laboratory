@@ -40,28 +40,3 @@ def lab(name):
     ch.setLevel('INFO')
     logger.addHandler(ch)
     return logger
-
-def data():
-    """Sets up the data file in much the same way as the log file.
-    Data cannot be output to the console. Data file can be found in
-    /datafiles/"""
-
-    dlogger = logging.getLogger("data_logger")
-    dlogger.setLevel('DEBUG')
-    if dlogger.hasHandlers():
-        dlogger.handlers.clear()
-
-    if not os.path.exists(config.DATA_DIR):
-        os.mkdir(config.DATA_DIR)
-    filename = os.path.join(config.DATA_DIR,'{}_{}.txt'.format(config.PROJECT_NAME,time.strftime('%d-%B-%y-%H%M')))
-
-    #set up file handler
-    fh = logging.FileHandler(filename)
-    fh.setFormatter(logging.Formatter('%(message)s'))
-    fh.setLevel('DEBUG')
-    dlogger.addHandler(fh)
-
-    #add header lines to data file
-    dlogger.critical('start_date: {}'.format(time.strftime('%A %d-%B %Y')))
-    dlogger.critical('start_time: {}'.format(time.strftime('%H:%M:%S')))
-    return dlogger
