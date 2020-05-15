@@ -30,8 +30,6 @@ import matplotlib.colors as colors
 from matplotlib.offsetbox import AnchoredText
 from laboratory import config
 
-
-
 def circle_fit(x,y,ax):
 
     xc,yc,R = leastsq_circle(x,y)[:3]
@@ -53,7 +51,7 @@ def impedance_fit(Z,theta):
     x = np.flipud(np.multiply(Z,np.cos(theta)))
     y = np.flipud(np.multiply(Z,np.sin(theta)))
 
-    print(x)
+    # print(x)
 
     i = 20
     for i in range(i, len(x)-1):
@@ -61,7 +59,7 @@ def impedance_fit(Z,theta):
             break
 
     A = x[:i]*2
-    print(A)
+    # print(A)
     r = np.dot(A,A)**-1 * np.dot(A,(x[:i]**2 + y[:i]**2))
     diameter = 2*r
 
@@ -124,9 +122,9 @@ def calculate_resistivity(Z,theta):
 
 def voltage(data,kwargs={}):
     """Plots voltage versus time"""
-    fig = plt.figure('Voltage')
-    ax = fig.add_subplot(111,**kwargs)
-    ax.plot(data['time_elapsed'],data['voltage'],'rx')
+    fig,ax = plt.subplots()
+
+    ax.plot(data['voltage'],'rx')
     ax.set_ylabel('Voltage [mV]')
     ax.tick_params(direction='in')
     ax.set_xlabel('Time Elapsed [hours]')
@@ -135,10 +133,11 @@ def voltage(data,kwargs={}):
 def cond_time(data,kwargs={}):
     """Plots conductivity versus time"""
     return 'This plot is not working yet!'
-    fig = plt.figure('Conductivity')
-    ax = fig.add_subplot(111,**kwargs)
+    # fig = plt.figure('Conductivity')
+    # ax = fig.add_subplot(111,**kwargs)
+    fig,ax = plt.subplots()
 
-    ax.plot(data['time_elapsed'],data.imp.cond,'rx')
+    ax.plot(data.imp.cond,'rx')
 
     ax.set_ylabel('Conductivity [S]')
     ax.tick_params(direction='in')
@@ -149,17 +148,12 @@ def cond_time(data,kwargs={}):
 def temperature(data,kwargs={}):
     """Plots furnace indicated and target temperature, thermocouple temperature and thermistor data versus time elapsed. A dictionary of key word arguments may be passed through to customize this plot"""
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111,**kwargs)
-
+    fig,ax = plt.subplots()
     # ax.plot(data['time_elapsed'],thermo.tref,'r-')
-    ax.plot(data['time_elapsed'],data['thermo_1'],'b.',label='Te1')
-    ax.plot(data['time_elapsed'],data['thermo_2'],'g.',label='Te2')
-    ax.step(data['time_elapsed'],data['target'],'y',linestyle='--',label='Target temperature')
-    ax.plot(data['time_elapsed'],data['indicated'],'m',label='Furnace indicated')
-
-    # ax.text(0,thermo.tref[0]+5,'Tref',color='red')
-    # ax.text(0,thermo.target[0]+5,'Target',color='y')
+    ax.plot(data['thermo_1'],'.',label='Te1')
+    ax.plot(data['thermo_2'],'.',label='Te2')
+    ax.step(data['target'],'y',linestyle='--',label='Target temperature')
+    ax.plot(data['indicated'],label='Furnace indicated')
 
     ax.set_ylabel(r'$Temperature [\circ C]$')
     ax.set_xlabel('Time Elapsed [Hours]')
@@ -175,8 +169,7 @@ def cole(data,temp_list,start=0,end=None,fit=False,**kwargs):
     :type temp: float/int
     """
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111,**kwargs)
+    fig, ax = plt.subplots()
 
     if not isinstance(temp_list,list):
         temp_list = [temp_list]
@@ -215,9 +208,9 @@ def gas(data):
     "Plots mass_flow data for all gases versus time elapsed"
     fig, (ax1, ax2) = plt.subplots(nrows=2, sharex=True)
 
-    ax1.plot(data['time_elapsed'],data['h2'],'m.',label='H2')
-    ax1.plot(data['time_elapsed'],data['co2'],'b.',label='CO2')
-    ax1.plot(data['time_elapsed'],data['co'],'g.',label='CO_total')
+    ax1.plot(data['h2'],'m.',label='H2')
+    ax1.plot(data['co2'],'b.',label='CO2')
+    ax1.plot(data['co'],'g.',label='CO')
 
     ax1.set_ylabel('Mass Flow [SCCM]')
     ax1.set_ylim(bottom=0)
@@ -225,7 +218,7 @@ def gas(data):
     ax1.set_title('Gas levels')
     ax1.legend()
 
-    ax2.plot(data['time_elapsed'],data['fugacity'],'r--',label='Log[Fugacity]')
+    ax2.plot(data['fugacity'],'r--',label='Log[Fugacity]')
     ax2.set_xlabel('Time elapsed [hours]')
     ax2.set_ylabel('log fo2p [Pascals]')
 
@@ -235,19 +228,17 @@ def gas(data):
 def imp_diameter(data):
     """Plots the impedance diameter against time_elapsed"""
 
-    diameter = []
-    for i in range(len(data['z'])):
-        z = data['z'][i]
-        theta = data['theta'][i]
-        diameter.append(impedance_fit(z[1:],theta[1:]))
+    # diameter = []
+    # for z,theta in zip(data['z'],data['theta']):
+    #     diameter.append(impedance_fit(z,theta))
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
+    data['diameter'] = [impedance_fit(z,theta) for z,theta in zip(data['z'],data['theta'])]  
 
-    ax.plot(data['time_elapsed'],diameter,'r')
-
+    fig, ax = plt.subplots()
+    ax.plot(data['diameter'],'r')
     ax.set_xlabel('Time Elapsed [hours]')
     ax.set_ylabel(r'$Diameter [\Omega$]')
+    plt.show()
 
 def arrhenius(data):
     """Plots inverse temperature versus conductivity"""

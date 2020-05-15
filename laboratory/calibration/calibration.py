@@ -1,6 +1,5 @@
 from laboratory.utils import loggers
-# from laboratory.utils.data import Data, save_obj
-# from laboratory.config import config
+from laboratory import config,laboratory
 import time
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,106 +7,80 @@ import os
 from datetime import datetime, timedelta
 import pickle
 from scipy.optimize import curve_fit
-import pandas as pd
 from laboratory.utils.exceptions import CalibrationError
-
-# logger = loggers.lab(__name__)
-
-def data_dict():
-    return {'furnace': {
-                'indicated':[],
-                'target':[],},
-            'daq': {
-                'reference':[],
-                'thermo_1':[],
-                'thermo_2':[],
-                'voltage':[]},
-            'motor': {
-                'position': []},
-            'gas': {
-                'h2': [],
-                'co_a': [],     # 0-50 SCCM
-                'co_b': [],     # 0-2 SCCM
-                'co2': []},
-            'lcr': {
-                'impedance': [],
-                'phase_angle': []},
-            'file_name': '',
-            'time': [],
-            'fugacity': {   'fugacity': [],
-                            'ratio': [],
-                            'offset': []},
-            'freq':None}
+from datetime import timedelta
+import pandas as pd
 
 
+logger = loggers.lab(__name__)
 
-            
-def stage_temperature_profile(self, temperature=500, step=.1, mins_per_step=10, start_position=4000, end_position=6000):
-    """Records the temperature of both electrodes (te1 and te2) as the sample is moved
-    from one end of the stage to the other. Used to find the center of the stage or the xpos of a desired temperature gradient when taking thermopower measurements.
+def stage_temperature_profile(temperature=500, step=.1, mins_per_step=10, start_position=4000, end_position=6000):
+    """Records the temperature of both electrodes (te1 and te2) as the sample is moved from one end of the stage to the other. Used to find the center of the stage or the xpos of a desired temperature gradient when taking thermopower measurements.
     """
-    folder = 'calibration'
-    if not os.path.exists(folder):
-        os.mkdir(folder)
-
+    lab = laboratory.Laboratory()
     logger.info('Beginning calibration of stage temperature profile at {} degrees.\n'.format(temperature))
 
     total_steps = (end_position-start_position)/(step*200)
 
-    wait_time = .5   #in hours
+    wait_time = timedelta(hours=8) 
 
-    logger.info('Estimated completion time: {}\n'.format(datetime.strftime(datetime.now() + timedelta(minutes=total_steps*mins_per_step,hours=wait_time),'%H:%M %A, %b %d')))
-    self.furnace.timer_status('reset')
-    self.furnace.setpoint_1(temperature)    #set the furnace to the desired temperature
-    self.furnace.display(2) #setdisplay to show time remaining
-    self.motor.position(start_position) #send the stage to the requested start position
 
-    time.sleep(wait_time*60*60)   #hold here for an hour to let the temperature equilibrate
+    logger.info('Estimated completion time: {}\n'.format(datetime.strftime(datetime.now() + timedelta(minutes=total_steps*mins_per_step) + wait_time,'%H:%M %A, %b %d')))
+    lab.furnace.timer_status('reset')
+    lab.furnace.setpoint_1(temperature)    #set the furnace to the desired temperature
+    lab.furnace.display(2) #setdisplay to show time remaining
+    lab.stage.go_to(start_position) #send the stage to the requested start position
 
-    data = data_dict()   #create a data object for storage
+    time.sleep(wait_time.seconds)   #hold here for an hour to let the temperature equilibrate
+
 
     #the furnace will revert to it's default temp if the timer expires
     #set timer duration to 3 x step length
-    self.furnace.timer_duration(seconds=3*mins_per_step*60)
+    lab.furnace.timer_duration(seconds=3*mins_per_step*60)
+
+    data = {'xpos':[],'thermo_1':[],'thermo_2':[]}
+
 
     xpos = start_position
-    # print('Beginning step')
     while xpos < end_position:
-        self.furnace.reset_timer()
+        lab.furnace.reset_timer()
 
-        #save the stage position to the data object
-        data['motor']['position'].append(xpos)
-        [data['daq'][key].append(val) for key, val in self.daq.get_temp().items()]
+        #save the stage position and temperature data
+        data['xpos'].append(xpos)
+        T = lab.daq.get_temp()
+        data['thermo_1'].append(T['thermo_1'])
+        data['thermo_2'].append(T['thermo_2'])
 
-        #move the stage
-        self.motor.move(step)
-        xpos = self.motor.position()
+        print(xpos,T['thermo_1'],T['thermo_2'])
 
-        #save the object and wait for the next step
-        save_obj(data,os.path.join(folder,'furnace_profile'))
-        print(data['motor']['position'][-1],data['daq']['thermo_1'][-1],data['daq']['thermo_2'][-1])
 
+        #move the stage and wait for the next cycle
+        lab.stage.move(step)
+        xpos = lab.stage.position
         time.sleep(mins_per_step*60)
 
 
+    df = pd.DataFrame(data)
+    df.to_pickle(os.path.join(config.CALIBRATION_DIR,'furnace_profile.pkl'))
+    lab.shut_down()
+    # plot_temperature_profile(data)
 
-    idx = np.argwhere(np.diff(np.sign(np.array(data['daq']['thermo_1']) - np.array(data['daq']['thermo_2'])))).flatten()
-
-    logger.info('Please update the config file with the following home_position: {}'.format(data['motor']['position'][idx[0]]))
-
-    plot_temperature_profile(data)
-    #TODO save the data fits to the settings file for use in program
 
 def parabola(x,a,b,c):
     return np.multiply(a,np.square(x)) + np.multiply(b,x) + c
 
-def plot_temperature_profile(data):
+def plot_temperature_profile():
+
+    data = pd.read_pickle(os.path.join(config.CALIBRATION_DIR,'furnace_profile.pkl'))
+
+    print(data)
+    # print(data.head())
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    x = data['motor']['position']
-    te1 = data['daq']['thermo_1']
-    te2 = data['daq']['thermo_2']
+    x = data['xpos']
+    te1 = data['thermo_1']
+    te2 = data['thermo_2']
 
     ax.plot(x,te1,'bx',label='te1')
     popt = curve_fit(parabola, x, te1)[0]
@@ -120,117 +93,18 @@ def plot_temperature_profile(data):
     plt.legend()
     plt.show()
 
-def find_center(self):
-    """TODO - Attempts to place the sample at the center of the heat source such that
-    te1 = te2. untested.
-    """
-    self.daq.reset()
-    self.daq.toggle_switch('thermo')
-    self.daq._config_temp()
-
-    while True:
-        temp = self.daq.get_temp()
-
-        if temp is None:
-            self.logger.error('No temperature data collected')
-        te1 = temp[1]
-        te2 = temp[2]
-
-        print(te1,te2)
-
-        delta = abs(te1-te2)
-
-        if delta < 0.1:
-            print('Found center at' + self.motor.get_pos())
-            break
-
-        if te1 < te2:
-            self.motor.move_mm(-0.05)
-        elif te2 < te1:
-            self.motor.move_mm(0.05)
-        print(self.motor.get_pos())
-
-        time.sleep(600)
-
-def load_file(filename):
-    """Loads a .pkl file
-
-    :param filename: full path to file. must be a .pkl
-    :type filename: str
-    """
-    if not filename.endswith('.pkl'):
-        filename = filename + '.pkl'
-
-    # for f in filenames:
-    with open(filename, 'rb') as input:  # Overwrites any existing file.
-        return pickle.load(input)
-
-
-def append_data(old,new):
-    [old[key].append(val) for key, val in new.items()]
-
-# def open_furnace_correction(data,temperature):
-#
-#     target = data.thermo.target
-#     indicated = data.thermo.indicated
-#     mean_temp = (data.thermo.te1 + data.thermo.te2) / 2
-#
-#     idx = np.where(np.roll(target,1)!=target)[0][1:]
-#     popt = curve_fit(parabola, actual, indicated)[0]
-#
-#     temp_obj = {'target':target[idx], 'indicated':indicated, 'mean_temp':actual, 'correction':popt}
-#
-#     save_obj(temp_obj,'laboratory\\calibration\\open_furnace_correction')
-#
-#     return np.around(np.multiply(popt[0],np.square(temperature)) + np.multiply(popt[1],temperature) + popt[2],2)
-
-
-# def plot_open_furnace_correction():
-
-#     data = config.OPEN_FURNACE_CORRECTION
-#     indicated = data['indicated']
-#     actual = data['mean_temp']
-#     popt = data['correction']
-
-#     fig = plt.figure()
-#     ax = fig.add_subplot(121)
-#     ax.plot(indicated,indicated,'rx',label='Furnace indicated')
-#     ax.plot(indicated,actual,'gx',label='Actual sample temperature')
-#     ax.set_xlabel('Furnace indicated [C]')
-#     ax.legend()
-
-#     ax2 = fig.add_subplot(122)
-#     ax2.plot(actual,indicated,'rx')
-#     ax2.set_xlabel('Furnace indicated temperature [C]')
-#     ax2.set_ylabel('Actual sample temperature [C]')
-#     ax2.plot(actual,parabola(actual,*popt),'b-')
-
-#     ax2.set_xlim(50,1100)
-#     ax2.set_ylim(50,1100)
-#     plt.show()
-
-
-def get_equilibrium_position(calibration_file):
-    try:
-        f = open(calibration_file, 'rb')  # Overwrites any existing file.
-    except FileNotFoundError:
-        raise CalibrationError('The linear stage requires calibration in order to find the position where both thermocouples sit at the peak temperature.')
-    else:
-        data = pickle.load(f)
-        f.close()
-
-    return np.argwhere(np.diff(np.sign(np.array(data['daq']['thermo_1']) - np.array(data['daq']['thermo_2'])))).flatten()[0]
-
-def get_furnace_correction(calibration_file):
+def find_indicated(temperature):
+    calibration_file = os.path.join(config.CALIBRATION_DIR,"open_furnace_correction.pkl")
     try:
         f = open(calibration_file,'rb')
     except FileNotFoundError:
-        raise CalibrationError("Can't find the correct calibration file at {}.The program requires this calibration to reconcile target temperatures with actual temperatures.".format(calibration_file))
+        raise CalibrationError("Can't find the correct calibration file at {}.The program requires this calibration to reconcile target temperatures with actual temperatures at the sample.".format(calibration_file))
     else:
         data = pickle.load(f)
         f.close()
 
-    return data
+    popt = data['correction']
+    return np.around(np.multiply(popt[0],np.square(temperature)) + np.multiply(popt[1],temperature) + popt[2],2)
 
 if __name__ == '__main__':
     furnace_profile()

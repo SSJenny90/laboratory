@@ -1,4 +1,3 @@
-# from laboratory.config import config
 from laboratory import config
 import time
 import logging

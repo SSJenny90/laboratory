@@ -1,5 +1,5 @@
 from laboratory.utils import loggers
-from laboratory.utils.exceptions import InstrumentReadError, InstrumentWriteError, InstrumentConnectionError
+from laboratory.utils.exceptions import CalibrationError,InstrumentReadError, InstrumentWriteError, InstrumentConnectionError
 logger = loggers.lab(__name__)
 from laboratory import config
 import visa
@@ -9,7 +9,9 @@ pp = pprint.PrettyPrinter(width=1,indent=4)
 from alicat import FlowMeter, FlowController
 import math
 import os
-from laboratory import calibration
+import pickle
+import numpy as np
+import traceback
 
 class USBSerialInstrument():
     """Base class for instruments that connect via USB"""
@@ -255,7 +257,12 @@ class DAQ(USBSerialInstrument):
         """
         command = 'ROUT:SCAN (@{},{},{})'.format(self.tref,self.te1,self.te2)
         self.write(command)
-        return {k:v for k,v in zip(['reference','thermo_1','thermo_2'],self.read('READ?','Getting temperature data'))}
+        data = [np.nan]*3
+        datax = self.read('READ?','Getting temperature data')
+        # print(datax)
+        if datax:
+            data = datax
+        return {k:v for k,v in zip(['reference','thermo_1','thermo_2'],data)}
 
     def get_voltage(self):
         """Gets voltage across the sample from the DAQ
@@ -658,13 +665,15 @@ class Furnace(minimalmodbus.Instrument):
 
     def _write(self,modbus_address,value,message,decimals=0):
 
-        for i in range(0,config.GLOBAL_MAXTRY):
+        for i in range(config.GLOBAL_MAXTRY):
             try:
                 logger.debug('\t{} to {}'.format(message,value))
                 self.write_register(modbus_address,value,number_of_decimals=decimals)
                 return True
             except Exception as e:
+                print('furnace error')
                 if i == config.GLOBAL_MAXTRY-1:
+                    print('too many furnace errors')
                     logger.error('\tError: "{}" failed! Check log for details'.format(message))
                     logger.debug(InstrumentWriteError(e))
 
@@ -675,12 +684,14 @@ class Furnace(minimalmodbus.Instrument):
                 return self.read_register(modbus_address,number_of_decimals=decimals)
             except Exception as e:
                 if i == config.GLOBAL_MAXTRY-1:
+                    traceback.print_stack()
+                    traceback.print_exc()
                     logger.error('\t"{}" failed! Check log for details'.format(message))
                     logger.error(InstrumentReadError(e))
                     # raise InstrumentReadError(e)
 
-class Motor():
-    """Driver for the motor controlling the linear stage
+class Stage():
+    """Driver for the linear stage
 
     =============== ===========================================================
     Attributes      message
@@ -690,6 +701,7 @@ class Motor():
     home            approximate xpos where te1 == te2
     max_xpos        maximum x-position of the stage
     address         computer port address
+    position        current position of the stage
     =============== ===========================================================
 
     =============== ===========================================================
@@ -698,29 +710,45 @@ class Motor():
     home            move to the center of the stage
     connect         attempt to connect to the LCR meter
     move            moves the stage the desired amount in mm
-    get_xpos        get the absolute position of the stage
-    position        moves the stage the desired amount in steps
-    get_speed       get the current speed of the stage
-    set_speed       sets the movement speed of the stage
-    reset           resets the device
-    test            sends stage on a test run
+    go_to           moves the stage to an absolute position
+    speed           get or set the current speed of the stage
+    reset           resets the device position to 0
     =============== ===========================================================
     """
 
     def __init__(self,ports=None):
-        self.home = calibration.get_equilibrium_position(os.path.join(config.CALIBRATION_DIR,config.EQUILIBRIUM_POSITION))
         self.port = config.MOTOR_ADDRESS
         self.pulse_equiv = config.PITCH * config.STEP_ANGLE / (360*config.SUBDIVISION)
         self.max_xpos = config.MAXIMUM_STAGE_POSITION
-
+        self.home = self._get_equilibrium_position()
         self._connect(ports)
+        self.go_to(self.home)
 
     def __str__(self):
         return '\n'.join([key+": "+str(val) for key,val in self.__dict__.items()])
 
+    @property
+    def position(self):
+        return self._read('?X','Getting x-position')
+
+    def _get_equilibrium_position(self):
+        calibration_file = os.path.join(config.CALIBRATION_DIR,'furnace_profile.pkl')
+        try:
+            f = open(calibration_file, 'rb')  # Overwrites any existing file.
+        except FileNotFoundError:
+            logger.warning('WARNING: The linear stage requires calibration in order to find the position where both thermocouples sit at the peak temperature.')
+        else:
+            data = pickle.load(f)
+            f.close()
+            try:
+                idx = np.argwhere(np.diff(np.sign(np.array(data['thermo_1']) - np.array(data['thermo_2'])))).flatten()[0]
+                return int(data.iloc[idx]['xpos'])
+            except KeyError:
+                return self.max_xpos / 2   
+
     def _connect(self,ports):
         """
-        attempts connection to the motor
+        attempts connection to the stage
 
         :param ports: list of available ports
         :type ports: list, string
@@ -733,7 +761,7 @@ class Motor():
 
         rm = visa.ResourceManager()
         for port in ports:
-            logger.debug('Searching for motor at {}...'.format(port))
+            logger.debug('Searching for stage at {}...'.format(port))
                    
             for i in range(0,config.GLOBAL_MAXTRY):
                 try:
@@ -756,7 +784,7 @@ class Motor():
 
     def center(self):
         """Moves stage to the absolute center"""
-        return self.position(self.max_xpos/2)
+        return self.go_to(self.max_xpos/2)
 
     def get_settings(self):
         output = {'baudrate':self.Ins.baud_rate,
@@ -775,45 +803,50 @@ class Motor():
         command = self._convertdisplacement(displacement)
         return self._write(command,'Moving stage {}mm'.format(displacement))
 
-    def position(self,requested_position=None):
-        """Get or set the absolute position of the linear stage
+    def go_to(self,position):
+        """Go to an absolute position on the linear stage
 
-        :param requested_position: requested absolute position of stage in controller pulse units
-        :type requested_position: float, int
+        :param position: absolute position of stage in controller pulse units - see manual
+        :type position: float, int
+        """
+
+        if not position or position == 'start':
+            return self.reset()
+
+        if isinstance(position,str):
+            if position == 'center':
+                position = self.max_xpos/2
+            elif position == 'end':
+                position = self.max_xpos
+            else:
+                raise ValueError('{} is not a valid command for the lineaer stage'.format(position))
+
+        current_position = self.position
+        if position > self.max_xpos:
+            position = self.max_xpos
+        elif position <= 0:
+            return self.reset()
+
+        displacement = int(position - current_position)
+        if not displacement:
+            return True
+
+        return self._write('X{0:+}'.format(displacement) ,'Setting x-position')
+
+    def speed(self,stage_speed=None):
+        """Get or set the speed of the stage
+
+        :param stage_speed: speed of the stage in mm/s
+        :type stage_speed: float, int
         """
         #this is a get request
-        if requested_position is None:
-            return self._read('?X','Getting x-position')
-        #this is a set request
-        else:
-            current_position = self._read('?X','Getting x-position')
-            if requested_position > self.max_xpos:
-                requested_position = self.max_xpos
-            elif requested_position <= 0:
-                return self.reset()
-
-            displacement = (current_position - requested_position)
-            if displacement == 0:
-                return True
-
-            direction = '-' if displacement > 0 else '+'
-            command = 'X{}{}'.format(direction,int(abs(displacement)))  #format to readable string
-            return self._write(command,'Setting x-position'.format())
-
-    def speed(self,motor_speed=None):
-        """Get or set the speed of the motor
-
-        :param motor_speed: speed of the motor in mm/s
-        :type motor_speed: float, int
-        """
-        #this is a get request
-        if motor_speed is None:
-            speed = self._read('?V','Getting motor speed...')
+        if stage_speed is None:
+            speed = self._read('?V','Getting stage speed...')
             return self._convertspeed(speed,False) #needs to be converted to mm/s
         #this is a set request
         else:
-            command = self._convertspeed(motor_speed)
-            return self._write(command,'Setting motor speed')
+            command = self._convertspeed(stage_speed)
+            return self._write(command,'Setting stage speed')
 
     def return_home(self):
         """Moves furnace to the center of the stage (x = 5000)
@@ -824,30 +857,15 @@ class Motor():
         """Resets the stage position so that the absolute position = 0"""
         return self._write('HX0','Resetting stage...')
 
-    def test(self):
-        """Sends the motorised stage on a test run to ensure everything is working
-        """
-
-        self.speed(10)
-        self.reset()
-        self.move(30)
-        self.speed(6)
-        self.move(-20)
-        self.speed(3)
-        self.move(10)
-        self.speed(10)
-        self.move(10)
-        self.reset()
-
     def _convertdisplacement(self,displacement):
-        """Converts a positive or negative displacement (in mm) into a command recognisable by the motor"""
+        """Converts a positive or negative displacement (in mm) into a command recognisable by the stage"""
 
         direction = '+' if displacement > 0 else '-'
         magnitude =  str(int(abs(displacement)/self.pulse_equiv))   #convert from mm to steps for motioncontroller
         return 'X'+direction+magnitude #command for motion controller
 
     def _convertspeed(self,speed,default=True):
-        """Converts a speed given in mm/s into a command recognisable by the motor"""
+        """Converts a speed given in mm/s into a command recognisable by the stage"""
         if default:
             Vspeed = (speed*0.03/self.pulse_equiv)-1        #convert from mm/s to Vspeed
             return 'V' + str(int(round(Vspeed)))        #command for motion controller
@@ -1430,7 +1448,7 @@ class GasControllers():
         # return math.log10(fo2)
 
 def get_ports():
-    '''Returns a list of available serial ports for connecting to the furnace and motor
+    '''Returns a list of available serial ports for connecting to the furnace and stage
 
     :returns: list of available ports
     :rtype: list, str
@@ -1438,7 +1456,8 @@ def get_ports():
     return [comport.device for comport in list_ports.comports()]
 
 def connect():
-    return LCR(), DAQ(), GasControllers(), Furnace(), Motor()
+    # return LCR(), DAQ(), GasControllers(), Furnace()
+    return LCR(), DAQ(), GasControllers(), Furnace(), Stage()
 
 def reconnect(lab_obj):
     
@@ -1449,7 +1468,7 @@ def reconnect(lab_obj):
     if not lab_obj.daq.status: lab_obj.daq = DAQ()
     if not lab_obj.gas.status: lab_obj.gas = GasControllers()
     if not lab_obj.furnace.status: lab_obj.furnace = Furnace()
-    if not lab_obj.motor.status: lab_obj.motor = Motor()
+    if not lab_obj.stage.status: lab_obj.stage = Stage()
     else:
         print('All instruments are connected!')
 

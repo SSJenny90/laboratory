@@ -8,7 +8,7 @@ from datetime import datetime
 EMAIL = 'samuel.jennings@adelaide.edu.au'
 
 #-------------------Experiment settings-------------------
-PROJECT_NAME = 'Test'
+PROJECT_NAME = 'Test3'
 SAMPLE_THICKNESS = 2.6 #in mm
 SAMPLE_DIAMETER = 12.7 #in mm
 SAMPLE_AREA = 97.686 #in mm^2 - ONLY SET IF SAMPLE IS NOT A COMPLETE DISK AND AREA MUST BE CALCULATED MANUALLY
@@ -22,7 +22,7 @@ DEBUG = False
 
 START_TIME = None
 """Starts the experiment at the given date and time. Can be any datetime object in the future
-""
+
 START_TIME = datetime(  year=2019,
                         day=3,
                         month=10,
@@ -34,15 +34,13 @@ START_TIME = datetime(  year=2019,
 #-------------------Folder defaults-------------------
 ROOT = os.getcwd()
 DATA_DIR = os.path.join(ROOT,'data')
-# DATA_DIR = "C:\\Users\\a1654095\\Google Drive\\Sam_Jennings\\PhD"
 LOG_DIR = os.path.join(ROOT,'log')
-CALIBRATION_DIR = os.path.join(ROOT,'laboratory/calibration')
+CALIBRATION_DIR = os.path.join(ROOT,'laboratory','calibration')
 
 
 GLOBAL_MAXTRY = 5
 #-------------------DAQ settings-------------------
 DAQ_ADDRESS = 'USB0::0x0957::0x2007::MY49021284::INSTR'
-#daq channels
 REFERENCE_TEMPERATURE = '101'
 ELECTRODE_1 = '104'
 ELECTRODE_2 = '105'
@@ -56,18 +54,15 @@ VOLTAGE_INTEGRATION_TIME = 1   #in cycles
 LCR_ADDRESS = 'USB0::0x0957::0x0909::MY46312484::INSTR'
 
 #-------------------Furnace settings-------------------
-FURNACE_ADDRESS = 'COM5'
+FURNACE_ADDRESS = 'COM8'
 RESET_TEMPERATURE = 40       #temperature the furnace resets to
-# OPEN_FURNACE_CORRECTION = calibration.get_furnace_correction(os.path.join(CALIBRATION_DIR,'open_furnace_correction.pkl'))
-OPEN_FURNACE_CORRECTION = 'open_furnace_correction.pkl'
 
-#-------------------Motor settings-------------------
-MOTOR_ADDRESS = 'COM8'
+#-------------------Stage settings-------------------
+MOTOR_ADDRESS = 'COM5'
 SUBDIVISION = 2  #from back of motion controller
-STEP_ANGLE = 0.9  #from the side of the motor
+STEP_ANGLE = 0.9  #from the side of the stage
 PITCH = 4        #in mm - from the optics focus website
 MAXIMUM_STAGE_POSITION = 10000
-# EQUILIBRIUM_POSITION = calibration.get_equilibrium_position(os.path.join(CALIBRATION_DIR,'furnace_profile.pkl'))
 EQUILIBRIUM_POSITION = 'furnace_profile.pkl'
 
 #-------------------Gas settings-------------------
