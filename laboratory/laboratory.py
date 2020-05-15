@@ -1,7 +1,7 @@
 from laboratory import config
 from laboratory import drivers
 from laboratory.utils import loggers, notifications
-from laboratory.calibration import calibration
+from laboratory import calibration
 from laboratory.utils.exceptions import SetupError
 from laboratory.widgets import CountdownTimer, ProgressBar 
 logger = loggers.lab(__name__)
@@ -16,7 +16,7 @@ from pandas.api.types import is_numeric_dtype
 import glob 
 
 class Laboratory():
-
+    """This is some comment for the laboratory"""
     def __init__(self,project_name=None,debug=False):
         self._debug = debug
         self.debug = config.DEBUG

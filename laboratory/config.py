@@ -12,8 +12,12 @@ PROJECT_NAME = 'Test3'
 SAMPLE_THICKNESS = 2.6 #in mm
 SAMPLE_DIAMETER = 12.7 #in mm
 SAMPLE_AREA = 97.686 #in mm^2 - ONLY SET IF SAMPLE IS NOT A COMPLETE DISK AND AREA MUST BE CALCULATED MANUALLY
+"""Area of the sample in :math:`mm^{2}`. Useful if the sample is not a perfect disc."""
+
+
 
 MINIMUM_FREQ = 20       #in Hz
+
 MAXIMUM_FREQ = 2000000  #in Hz (2MHz)
 FREQ_LOG_SCALE = False
 FREQUENCY_LIST = []
@@ -40,15 +44,20 @@ CALIBRATION_DIR = os.path.join(ROOT,'laboratory','calibration')
 
 GLOBAL_MAXTRY = 5
 #-------------------DAQ settings-------------------
-DAQ_ADDRESS = 'USB0::0x0957::0x2007::MY49021284::INSTR'
-REFERENCE_TEMPERATURE = '101'
-ELECTRODE_1 = '104'
-ELECTRODE_2 = '105'
-VOLTAGE = '103'
-SWITCH = '205,206'
-THERMISTOR_OHMS = 10000
-TEMPERATURE_INTEGRATION_TIME = 10   #in cycles
-VOLTAGE_INTEGRATION_TIME = 1   #in cycles
+
+DAQ = {
+    'address': 'USB0::0x0957::0x2007::MY49021284::INSTR',
+    'channels': {
+        'reference_temperature': 101,
+        'electrode_a': 104,
+        'electrode_b': 105,
+        'voltage': 103,
+        'switch': [205,206],
+    },
+    'thermistor': 10,
+    'temp_integration_time':10,
+    'volt_integration_time':1,
+}
 
 #-------------------LCR settings-------------------
 LCR_ADDRESS = 'USB0::0x0957::0x0909::MY46312484::INSTR'
@@ -58,16 +67,17 @@ FURNACE_ADDRESS = 'COM8'
 RESET_TEMPERATURE = 40       #temperature the furnace resets to
 
 #-------------------Stage settings-------------------
-MOTOR_ADDRESS = 'COM5'
-SUBDIVISION = 2  #from back of motion controller
-STEP_ANGLE = 0.9  #from the side of the stage
-PITCH = 4        #in mm - from the optics focus website
-MAXIMUM_STAGE_POSITION = 10000
-EQUILIBRIUM_POSITION = 'furnace_profile.pkl'
+STAGE = {
+    'address': 'COM5',
+    'subdivision': 2, #from back of motion controller
+    'step_angle': 0.9, #from the side of the stage
+    'pitch': 4, #in mm - from the optics focus website
+    'max_stage_position': 10000,
+}
+
 
 #-------------------Gas settings-------------------
 MFC_ADDRESS = 'COM6'    #for windows
-# MFC_ADDRESS = '/dev/tty.SLAB_USBtoUART'   #for mac
 
 CO2 = { 'address':'A',
         'upper_limit': 200,

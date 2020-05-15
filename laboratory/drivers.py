@@ -1,3 +1,8 @@
+"""
+Contains the drivers for each instrument in the laboratory.
+"""
+
+
 from laboratory.utils import loggers
 from laboratory.utils.exceptions import CalibrationError,InstrumentReadError, InstrumentWriteError, InstrumentConnectionError
 logger = loggers.lab(__name__)
@@ -213,14 +218,14 @@ class DAQ(USBSerialInstrument):
             do not change class attributes unless the physical wiring has been changed within the DAQ
         """
     #these attributes must only be changed if the physical wiring has been changed. if required, change values in the config.py file
-    tref = config.REFERENCE_TEMPERATURE
-    te1 = config.ELECTRODE_1
-    te2 = config.ELECTRODE_2
-    volt = config.VOLTAGE
-    switch = config.SWITCH
+    tref = str(config.DAQ['channels']['reference_temperature'])
+    te1 = str(config.DAQ['channels']['electrode_a'])
+    te2 = str(config.DAQ['channels']['electrode_b'])
+    volt = str(config.DAQ['channels']['voltage'])
+    switch = ','.join([str(x) for x in config.DAQ['channels']['switch']])
 
     def __init__(self):
-        self.address = config.DAQ_ADDRESS
+        self.address = config.DAQ['address']
         super().__init__(port=self.address)
         self.configure()
 
@@ -324,7 +329,7 @@ class DAQ(USBSerialInstrument):
         self.write('CONF:TEMP TC,S,(@{},{})'.format(self.te1,self.te2),'Setting thermocouples','S-type')
 
         #configure 10,000 ohm thermistor
-        self.write('CONF:TEMP THER,{},(@{})'.format(config.THERMISTOR_OHMS,self.tref),'Setting thermistor','{} k.Ohm'.format(config.THERMISTOR_OHMS/1000))
+        self.write('CONF:TEMP THER,{},(@{})'.format(config.DAQ['thermistor']*1000,self.tref),'Setting thermistor','{} k.Ohm'.format(config.DAQ['thermistor']))
 
         #set units to degrees C
         self.write('UNIT:TEMP C,(@{},{},{})'.format(self.tref,self.te1,self.te2),'Setting temperature units','Celsius')
@@ -333,12 +338,12 @@ class DAQ(USBSerialInstrument):
         self.write('SENS:TEMP:TRAN:TC:RJUN:TYPE EXT,(@{},{})'.format(self.te1,self.te2), 'Setting reference junction','external')
 
         #sets integration time to 10 cycles. affects measurement resolution
-        self.write('SENS:TEMP:NPLC {},(@{},{},{})'.format(config.TEMPERATURE_INTEGRATION_TIME,self.tref,self.te1,self.te2), 'Setting temperature integration time','{} cycle/s'.format(config.TEMPERATURE_INTEGRATION_TIME))
+        self.write('SENS:TEMP:NPLC {},(@{},{},{})'.format(config.DAQ['temp_integration_time'],self.tref,self.te1,self.te2), 'Setting temperature integration time','{} cycle/s'.format(config.DAQ['temp_integration_time']))
 
     def _config_volt(self):
         """Configures the voltage measurements"""
         self.write('CONF:VOLT:DC (@{})'.format(self.volt),'Setting voltage','DC')
-        self.write('SENS:VOLT:DC:NPLC {},(@{})'.format(config.VOLTAGE_INTEGRATION_TIME,self.volt),'Setting voltage integration time','{} cycle/s'.format(config.VOLTAGE_INTEGRATION_TIME))
+        self.write('SENS:VOLT:DC:NPLC {},(@{})'.format(config.DAQ['volt_integration_time'],self.volt),'Setting voltage integration time','{} cycle/s'.format(config.config.DAQ['volt_integration_time']))
 
 class Furnace(minimalmodbus.Instrument):
     """Driver for the Eurotherm 3216 Temperature Controller
@@ -717,9 +722,9 @@ class Stage():
     """
 
     def __init__(self,ports=None):
-        self.port = config.MOTOR_ADDRESS
-        self.pulse_equiv = config.PITCH * config.STEP_ANGLE / (360*config.SUBDIVISION)
-        self.max_xpos = config.MAXIMUM_STAGE_POSITION
+        self.port = config.STAGE['address']
+        self.pulse_equiv = config.STAGE['pitch'] * config.STAGE['step_angle'] / (360*config.STAGE['subdivision'])
+        self.max_xpos = config.STAGE['max_stage_position']
         self.home = self._get_equilibrium_position()
         self._connect(ports)
         self.go_to(self.home)
@@ -905,7 +910,7 @@ class Stage():
                     return int(''.join(x for x in response if x.isdigit()))
 
 class AlicatController(FlowController):
-    """Driver for an individual Mass Flow Controller.
+    """Base driver for each individual Mass Flow Controller.
 
         .. note::
 
