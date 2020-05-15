@@ -14,9 +14,10 @@ matplotlib = "*"
 numpy = "*"
 pandas = "*"
 scipy = "*"
-PyVISA = "*"
 xlrd = "*"
 ipython = "*"
+pyvisa = "*"
+sphinx-rtd-theme = "*"
 
 [requires]
-python_version = "3.7"
+python_version = "3"
