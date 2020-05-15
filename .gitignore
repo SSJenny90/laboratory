@@ -5,7 +5,7 @@ datafiles/
 test.py
 docs/logfiles/
 docs/build/
-__pycache__
+__pycache__/
 calibration_files/
 *.pkl
 launch.json
@@ -14,6 +14,12 @@ test_load.py
 settings.json
 *.cpython-37.pyc
 *.txt
+*.pyc
+*.csv
+*.xlsx
+.vscode
+log/*
+
 
 # Compiled source #
 ###################
