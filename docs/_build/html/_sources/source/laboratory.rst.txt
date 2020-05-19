@@ -1,24 +1,19 @@
-Package Laboratory
-==================
+Laboratory
+----------
 
-Module Config
-------------------------
+.. .. automodule:: laboratory.laboratory
+..     :members:
+..     :undoc-members:
+..     :show-inheritance:
 
-.. automodule:: laboratory.config
+Laboratory
+^^^^^^^^^^^
+
+.. autoclass:: laboratory.laboratory.Laboratory
     :members:
-    :undoc-members:
-    :show-inheritance:
 
-Module Setup
------------------------
+Experiment
+^^^^^^^^^^
 
-.. automodule:: laboratory.setup
+.. autoclass:: laboratory.laboratory.Experiment
     :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-.. automodule:: laboratory
-    :members:
-    :undoc-members:
-    :show-inheritance:

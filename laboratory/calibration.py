@@ -11,7 +11,6 @@ from laboratory.utils.exceptions import CalibrationError
 from datetime import timedelta
 import pandas as pd
 
-
 logger = loggers.lab(__name__)
 
 def stage_temperature_profile(temperature=500, step=.1, mins_per_step=10, start_position=4000, end_position=6000):
@@ -65,6 +64,14 @@ def stage_temperature_profile(temperature=500, step=.1, mins_per_step=10, start_
     lab.shut_down()
     # plot_temperature_profile(data)
 
+def open_furnace_calibration():
+    """TODO"""
+    lab = laboratory.Laboratory()
+    logger.info('Beginning calibration of stage temperature profile at {} degrees.\n'.format(temperature))
+
+    df = pd.DataFrame(data)
+    df.to_pickle(os.path.join(config.CALIBRATION_DIR,'open_furnace_calibration.pkl'))
+    lab.shut_down()
 
 def parabola(x,a,b,c):
     return np.multiply(a,np.square(x)) + np.multiply(b,x) + c

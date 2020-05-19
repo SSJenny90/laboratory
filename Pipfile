@@ -14,10 +14,14 @@ matplotlib = "*"
 numpy = "*"
 pandas = "*"
 scipy = "*"
-PyVISA = "*"
 xlrd = "*"
 ipython = "*"
+<<<<<<< HEAD
 tqdm = "*"
+=======
+pyvisa = "*"
+sphinx-rtd-theme = "*"
+>>>>>>> 92b1ec3ce61aed95f74b5ee48f3f4fd92daaf6d3
 
 [requires]
-python_version = "3.7"
+python_version = "3"
