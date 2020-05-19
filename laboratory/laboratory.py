@@ -14,6 +14,8 @@ import pandas as pd
 from pprint import pprint
 from pandas.api.types import is_numeric_dtype
 import glob 
+from tqdm import tqdm
+
 
 class Laboratory():
 
@@ -216,7 +218,8 @@ class Experiment(Laboratory):
 
         while True:
             self.measurement = {}
-            self.progress_bar = ProgressBar(length=5+len(self.settings['freq']), hide=self.debug)
+            self.progress_bar = tqdm(total=6+len(self.settings['freq']))
+            # self.progress_bar = ProgressBar(length=5+len(self.settings['freq']), hide=self.debug)
             self.furnace.reset_timer()
 
             #get a suite of measurements
@@ -229,6 +232,7 @@ class Experiment(Laboratory):
             self.get_impedance()
             self.data = self.data.append(self.measurement,ignore_index=True)
 
+            # print('')
             CountdownTimer(hide=self.debug).start({'minutes':step.interval},self.measurement['time'], message='Next measurement in...')
             logger.debug('Countdown finished. Checking for instrument errors.')
 
@@ -248,8 +252,9 @@ class Experiment(Laboratory):
     def begin(self):
 
         self.mean_temp = self.daq.mean_temp
-        logger.debug('Collecting measurements @ {} degC...'.format(str(self.mean_temp)))
-        self.progress_bar.pre_message = '@{}C'.format(str(self.mean_temp))
+        message = 'Collecting data @ {} degC...'.format(str(self.mean_temp))
+        logger.debug(message)
+        self.progress_bar.set_description_str(message)
         self.measurement['time'] = datetime.now()
 
     def set_fugacity(self,step):
@@ -264,8 +269,8 @@ class Experiment(Laboratory):
             :param gas_type: gas type to use for calculating ratio - can be either 'h2' or 'co'
             :type pressure: str
             """
-        self.progress_bar.update('Calculating required co2:{} mix...'.format(step.fo2_gas))
-        logger.debug('Calculating required co2:{} mix...'.format(step.fo2_gas))
+        self.update_progress_bar('Calculating required gas mix')  
+        # logger.debug('Calculating required co2:{} mix...'.format(step.fo2_gas))
         log_fugacity, ratio = self.gas.set_to_buffer( buffer=step.buffer,
                                 offset= step.offset,
                                 temp=self.mean_temp, 
@@ -274,9 +279,7 @@ class Experiment(Laboratory):
         self.measurement = {**self.measurement,**{'fugacity':log_fugacity,'ratio':ratio}}
 
     def get_stage_position(self):
-        message = 'Getting stage position...'
-        self.progress_bar.update(message)
-        logger.debug(message)
+        self.update_progress_bar('Getting stage position')  
         self.measurement['x_position'] = self.stage.position
 
     def get_gas(self):
@@ -288,9 +291,7 @@ class Experiment(Laboratory):
         :returns: [mass_flow, pressure, temperature, volumetric_flow, setpoint]
         :rtype: list
         """
-        message = 'Getting gas readings'
-        self.progress_bar.update(message)
-        logger.debug(message)      
+        self.update_progress_bar('Getting gas readings')  
         self.measurement['h2'] = self.gas.h2.mass_flow()
         self.measurement['co2'] = self.gas.co2.mass_flow()
         self.measurement['co'] = self.gas.co_a.mass_flow() + self.gas.co_b.mass_flow()
@@ -308,9 +309,7 @@ class Experiment(Laboratory):
         :param target: target temperature of current step
         :type target: float
         """
-        message = 'Getting temperature data...'
-        self.progress_bar.update(message)
-        logger.debug(message)
+        self.update_progress_bar('Getting temperature data')
         self.measurement['target'] = self.furnace.setpoint_1()
         self.measurement['indicated'] = self.furnace.indicated()
 
@@ -320,19 +319,19 @@ class Experiment(Laboratory):
         :returns: [thermistor, te1, te2, voltage]
         :rtype: list
         """
-        message = 'Getting thermopower data'
-        self.progress_bar.update(message)
-        logger.debug(message)
+        self.update_progress_bar('Getting thermopower data')
         self.measurement = {**self.measurement, **self.daq.get_thermopower()}
 
     def get_impedance(self):
         """Sets up the lcr meter and retrieves complex impedance data at all frequencies specified by Data.freq. Data is saved in Data.imp.z and Data.imp.theta as a list of length Data.freq. Values are also saved to the data file.
         """
         self.daq.toggle_switch('impedance')
-        logger.debug('Collecting impedance data from LCR meter...')
+        # logger.debug('Collecting impedance data from LCR meter...')
+        self.update_progress_bar('Collecting impedance data')
         self.measurement = {**self.measurement,'z':[],'theta':[]}
         for _ in range(0,len(self.settings['freq'])):
-            self.progress_bar.update('Collecting impedance data...')
+            # self.progress_bar.update('Collecting impedance data...')
+            self.progress_bar.update(1)
 
             #return a single line for each frequency value
             line = self.lcr.get_complex_impedance()
@@ -340,6 +339,13 @@ class Experiment(Laboratory):
             [self.measurement[key].append(val) for key, val in line.items()] 
 
         self.daq.toggle_switch('thermo')
+
+    def update_progress_bar(self,message=None):
+        self.progress_bar.update(1)
+        # self.progress_bar.set_description(message)
+        self.progress_bar.set_postfix_str(message)
+        # self.progress_bar.write(message)
+        logger.debug(message)
 
     def setup(self,controlfile):
         """Conducts necessary checks before running an experiment abs
