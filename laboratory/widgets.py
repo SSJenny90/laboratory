@@ -1,49 +1,7 @@
-from datetime import datetime, timedelta
 import sys
 import time
+from datetime import datetime, timedelta
 
-class ProgressBar():
-
-    def __init__(self, length, hide=True, bar_length=25, pre_message=''):
-        self.iteration = 1
-        self.length = length
-        self.temp = ''
-        self.hide = hide
-        self.bar_length = bar_length
-        self.pre_message = pre_message
-    
-    def update(self,post_message='', pre_message='',  decimals=0):
-        """Creates a terminal progress bar
-
-        :param pre_message: message to be displayed before the progress bar
-        :type pre_message: str
-
-        :param post_message: message to be displayed after the progress bar
-        :type post_message: str
-        """
-
-        if self.hide:
-            return   #don't display progress bar when in debugging mode
-
-        if not pre_message:
-            pre_message = self.pre_message
-
-        str_format = "{0:." + str(decimals) + "f}"
-        percentage = str_format.format(100 * (self.iteration / float(self.length)))
-        filled_length = int(round(self.bar_length * self.iteration / float(self.length)))
-        bar = '#' * filled_length + '-' * (self.bar_length - filled_length)
-
-        sys.stdout.write('\r{}|{}| {}{} - {}             '.format(pre_message,bar, percentage, '%',post_message))
-
-        if self.iteration == self.length:
-            sys.stdout.write('\r{}|{}| {}{} - {}             '.format(pre_message,bar, percentage, '%','Complete!                \n'))
-            # sys.stdout.write('')
-
-        sys.stdout.flush()
-        self.iteration += 1
-
-    def reset(self):
-        self.iteration = 1
 
 class CountdownTimer():
 
@@ -79,7 +37,8 @@ class CountdownTimer():
 
         end_time = start_time + timedelta(**wait_time)
         while (end_time-datetime.now()).total_seconds() > 0:
-            sys.stdout.write('\r{} {}'.format(message,str(end_time-datetime.now())[:7]))
+            sys.stdout.write('\r{} {}'.format(
+                message, str(end_time-datetime.now())[:7]))
             sys.stdout.flush()
 
         self.stop(stop_message)
@@ -92,4 +51,3 @@ class CountdownTimer():
             sys.stdout.write(stop_message)
 
         sys.stdout.flush()
-
