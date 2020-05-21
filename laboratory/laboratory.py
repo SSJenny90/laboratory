@@ -10,7 +10,7 @@ from pandas.api.types import is_numeric_dtype
 from laboratory import calibration, config, drivers
 from laboratory.utils import loggers, notifications
 from laboratory.utils.exceptions import SetupError
-from laboratory.widgets import CountdownTimer, ProgressBar
+from laboratory.widgets import CountdownTimer
 
 logger = loggers.lab(__name__)
 
@@ -244,7 +244,10 @@ class Experiment(Laboratory):
             self.data = self.data.append(self.measurement, ignore_index=True)
 
             CountdownTimer(hide=self.debug).start(
-                {'minutes': step.interval}, self.measurement['time'], message='Next measurement in...')
+                {'minutes': step.interval}, 
+                self.measurement['time'], 
+                message='Next measurement in...')
+                
             logger.debug('Countdown finished. Checking for instrument errors.')
 
             # check to make sure everything is connected
