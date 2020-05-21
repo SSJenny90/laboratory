@@ -343,7 +343,7 @@ class DAQ(USBSerialInstrument):
     def _config_volt(self):
         """Configures the voltage measurements"""
         self.write('CONF:VOLT:DC (@{})'.format(self.volt),'Setting voltage','DC')
-        self.write('SENS:VOLT:DC:NPLC {},(@{})'.format(config.DAQ['volt_integration_time'],self.volt),'Setting voltage integration time','{} cycle/s'.format(config.config.DAQ['volt_integration_time']))
+        self.write('SENS:VOLT:DC:NPLC {},(@{})'.format(config.DAQ['volt_integration_time'],self.volt),'Setting voltage integration time','{} cycle/s'.format(config.DAQ['volt_integration_time']))
 
 class Furnace(minimalmodbus.Instrument):
     """Driver for the Eurotherm 3216 Temperature Controller
@@ -676,7 +676,7 @@ class Furnace(minimalmodbus.Instrument):
                 self.write_register(modbus_address,value,number_of_decimals=decimals)
                 return True
             except Exception as e:
-                print('furnace error')
+                # print('furnace error')
                 if i == config.GLOBAL_MAXTRY-1:
                     print('too many furnace errors')
                     logger.error('\tError: "{}" failed! Check log for details'.format(message))
@@ -689,8 +689,8 @@ class Furnace(minimalmodbus.Instrument):
                 return self.read_register(modbus_address,number_of_decimals=decimals)
             except Exception as e:
                 if i == config.GLOBAL_MAXTRY-1:
-                    traceback.print_stack()
-                    traceback.print_exc()
+                    # traceback.print_stack()
+                    # traceback.print_exc()
                     logger.error('\t"{}" failed! Check log for details'.format(message))
                     logger.error(InstrumentReadError(e))
                     # raise InstrumentReadError(e)
@@ -814,7 +814,6 @@ class Stage():
         :param position: absolute position of stage in controller pulse units - see manual
         :type position: float, int
         """
-
         if not position or position == 'start':
             return self.reset()
 
