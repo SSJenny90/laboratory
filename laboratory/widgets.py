@@ -5,20 +5,20 @@ from datetime import datetime, timedelta
 
 class CountdownTimer():
 
-    def __init__(self, hold=False, hide=True):
+    def __init__(self, days=0, seconds=0, microseconds=0,
+                milliseconds=0, minutes=0, hours=0, weeks=0, hold=False, hide=True):
         """Controls the count down until next measurement cycle
 
         :param hold: whether to display timer after time has elapsed [default=False (removes timer)]
         :type hold: boolean
         """
+        self.duration = timedelta(days=0, seconds=0, microseconds=0,
+                milliseconds=0, minutes=0, hours=0, weeks=0)
         self.hold = hold
         self.hide = hide
 
-    def start(self, wait_time, start_time=None, message='Time remaining: ', stop_message=''):
+    def start(self, start_time=None, message='Time remaining: ', stop_message=''):
         """Controls the count down until next measurement cycle
-
-        :param wait_time: time in minutes remaining until next measurement
-        :type wait_time: float/int
 
         :param start_time: [optional] denotes a desired start time. Default: datetime.now()
         :type start_time: datetime.datetime object
@@ -35,7 +35,7 @@ class CountdownTimer():
         if not start_time:
             start_time = datetime.now()
 
-        end_time = start_time + timedelta(**wait_time)
+        end_time = start_time + timedelta(**self.duration)
         while (end_time-datetime.now()).total_seconds() > 0:
             sys.stdout.write('\r{} {}'.format(
                 message, str(end_time-datetime.now())[:7]))
