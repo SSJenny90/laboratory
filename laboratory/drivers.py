@@ -368,7 +368,7 @@ class DAQ(USBSerialInstrument):
         self.write('CONF:VOLT:DC (@{})'.format(self.volt),
                    'Setting voltage', 'DC')
         self.write('SENS:VOLT:DC:NPLC {},(@{})'.format(config.DAQ['volt_integration_time'], self.volt),
-                   'Setting voltage integration time', '{} cycle/s'.format(config.config.DAQ['volt_integration_time']))
+                   'Setting voltage integration time', '{} cycle/s'.format(config.DAQ['volt_integration_time']))
 
 
 class Furnace(minimalmodbus.Instrument):
@@ -507,8 +507,6 @@ class Furnace(minimalmodbus.Instrument):
         400
         """
         return self._command(temperature, address, 'setpoint 1')
-        # if temperature: return self._write(address,temperature,'Setting SP1')
-        # else: return self._read(address,'Getting SP1 temperature')
 
     def setpoint_2(self, temperature=None, address=25):
         """If temperature is specified, this method sets the target temperature of setpoint 2. If no argument is passed it queries the current target of setpoint 2.
@@ -528,11 +526,8 @@ class Furnace(minimalmodbus.Instrument):
         >>> lab.furnace.setpoint_2()
         25.0
         """
+        return self._command(temperature, address, 'setpoint 2')
 
-        if temperature:
-            return self._write(self.default_temp, address, 'setpoint 2')
-        else:
-            return self._read(address, 'Getting SP2 temperature')
 
     def setpoint_select(self, selection=None, address=15):
         """If selection is specified, selects the current working setpoint. If no argument is passed, it returns the current working setpoint.
@@ -683,53 +678,46 @@ class Furnace(minimalmodbus.Instrument):
         self.setpoint_1(40)
         self.timer_status('reset')
 
-    def _command(self, value, address, message, options=None, decimals=0):
+    def _command(self, value, address, message, options={}, decimals=0):
         if value:
-            if options is None:
-                return self._write(address, value, 'Setting {}'.format(message), decimals=decimals)
-            elif value in options:
-                return self._write(address, options[value], 'Setting {}'.format(message))
-            else:
-                logger.info('Incorrect argument. Must be one of {}'.format(
-                    [key for key in options.keys()]))
+            return self._write(address, options.get(value,value), 'Setting {}'.format(message), decimals=decimals)
         else:
-            output = self._read(address, 'Getting {}'.format(
-                message), decimals=decimals)
-            if options is None:
+            output = self._read(address, 'Getting {}'.format(message), decimals=decimals)
+            if not options:
                 return output
             else:
-                for key, value in options.items():
-                    if value == output:
-                        return key
+                for k, v in options.items():
+                    if v == value:
+                        return k
 
     def _write(self, modbus_address, value, message, decimals=0):
 
         for i in range(config.GLOBAL_MAXTRY):
             try:
-                logger.debug('\t{} to {}'.format(message, value))
                 self.write_register(modbus_address, value,
                                     number_of_decimals=decimals)
-                return True
             except Exception as e:
-                # print('furnace error')
                 if i == config.GLOBAL_MAXTRY-1:
-                    print('too many furnace errors')
                     logger.error(
                         '\tError: "{}" failed! Check log for details'.format(message))
                     logger.debug(InstrumentWriteError(e))
+            else:
+                logger.debug('\t{} to {}'.format(message, value))
+                return True
 
     def _read(self, modbus_address, message, decimals=0):
         for i in range(config.GLOBAL_MAXTRY):
             try:
-                logger.debug('\t{}...'.format(message))
-                return self.read_register(modbus_address, number_of_decimals=decimals)
+                values = self.read_register(modbus_address, number_of_decimals=decimals)
             except Exception as e:
                 if i == config.GLOBAL_MAXTRY-1:
-                    # traceback.print_stack()
-                    # traceback.print_exc()
                     logger.error('\t"{}" failed! Check log for details'.format(message))
                     logger.error(InstrumentReadError(e))
-                    # raise InstrumentReadError(e)
+            else:
+                logger.debug('\t{} succesful'.format(message))
+                return values
+
+
 
 
 class Stage():
