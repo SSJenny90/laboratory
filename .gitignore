@@ -13,9 +13,9 @@ test_experiment.py
 test_load.py
 *.cpython-37.pyc
 *.txt
-*.pyc
+/*.pyc
 *.csv
-*.xlsx
+/*.xlsx
 .vscode
 log/*
 *.env
