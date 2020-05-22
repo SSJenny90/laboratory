@@ -273,7 +273,6 @@ class Experiment(Laboratory):
                 time=now.strftime('%H:%M'),
                 temp=self.mean_temp,
                 )
-            
             )
         self.measurement['time'] = now
 
