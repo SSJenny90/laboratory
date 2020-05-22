@@ -12,8 +12,8 @@ class CountdownTimer():
         :param hold: whether to display timer after time has elapsed [default=False (removes timer)]
         :type hold: boolean
         """
-        self.duration = timedelta(days=0, seconds=0, microseconds=0,
-                milliseconds=0, minutes=0, hours=0, weeks=0)
+        self.duration = timedelta(days=days, seconds=seconds, microseconds=microseconds,
+                milliseconds=milliseconds, minutes=minutes, hours=hours, weeks=weeks)
         self.hold = hold
         self.hide = hide
 
@@ -29,17 +29,16 @@ class CountdownTimer():
         :param stop_message: message displayed when time has elapsed
         :type stop_message: str
         """
-        if self.hide:
-            return
-
         if not start_time:
             start_time = datetime.now()
 
-        end_time = start_time + timedelta(**self.duration)
-        while (end_time-datetime.now()).total_seconds() > 0:
-            sys.stdout.write('\r{} {}'.format(
-                message, str(end_time-datetime.now())[:7]))
-            sys.stdout.flush()
+        finish = start_time + self.duration
+        # while (finish-datetime.now()).total_seconds() > 0:
+        while finish > datetime.now():
+            if not self.hide:
+                sys.stdout.write('\r{} {}'.format(
+                    message, str(finish-datetime.now()).split('.')[0]))
+                sys.stdout.flush()
 
         self.stop(stop_message)
 
