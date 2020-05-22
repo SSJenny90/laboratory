@@ -4,36 +4,27 @@ This is a configuration file for setting up the laboratory. It contains settings
 import os
 from datetime import datetime
 
-#if you wish to receive email updates when the program completes each step
-EMAIL = 'samuel.jennings@adelaide.edu.au'
 
 #-------------------Experiment settings-------------------
-PROJECT_NAME = 'Test3'
+PROJECT_NAME = '2 Week Test'
 SAMPLE_THICKNESS = 2.6 #in mm
 SAMPLE_DIAMETER = 12.7 #in mm
 SAMPLE_AREA = 97.686 #in mm^2 - ONLY SET IF SAMPLE IS NOT A COMPLETE DISK AND AREA MUST BE CALCULATED MANUALLY
 """Area of the sample in :math:`mm^{2}`. Useful if the sample is not a perfect disc."""
 
-
-
 MINIMUM_FREQ = 20       #in Hz
-
 MAXIMUM_FREQ = 2000000  #in Hz (2MHz)
 FREQ_LOG_SCALE = False
 FREQUENCY_LIST = []
 
 DEBUG = False
 
-START_TIME = None
-"""Starts the experiment at the given date and time. Can be any datetime object in the future
-
-START_TIME = datetime(  year=2019,
-                        day=3,
-                        month=10,
-                        hour=18,
-                        minute=17)
-"""
-
+#if you wish to receive email updates when the program completes each step
+EMAIL = {
+    'pw': os.environ.get('EMAIL_PW',''),
+    'from': os.environ.get('EMAIL_FROM',''),
+    'to': 'samuel.jennings@adelaide.edu.au',
+}
 
 #-------------------Folder defaults-------------------
 ROOT = os.getcwd()
@@ -44,7 +35,6 @@ CALIBRATION_DIR = os.path.join(ROOT,'laboratory','calibration')
 
 GLOBAL_MAXTRY = 5
 #-------------------DAQ settings-------------------
-
 DAQ = {
     'address': 'USB0::0x0957::0x2007::MY49021284::INSTR',
     'channels': {
@@ -78,7 +68,6 @@ STAGE = {
 
 #-------------------Gas settings-------------------
 MFC_ADDRESS = 'COM6'    #for windows
-
 CO2 = { 'address':'A',
         'upper_limit': 200,
         'precision':2}
