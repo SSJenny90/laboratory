@@ -1,7 +1,8 @@
 import glob
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -23,7 +24,6 @@ class Laboratory():
     def __init__(self, project_name=None, debug=False):
         self._debug = debug
         self.debug = config.DEBUG
-        self._delayed_start = None
         if project_name:
             self.load_data(os.path.join(config.DATA_DIR, project_name))
         else:
@@ -57,17 +57,7 @@ class Laboratory():
     def process_data(self, data):
         data['time_elapsed'] = data['time'] - data['time'][0]
         data.set_index('time_elapsed', inplace=True)
-
         return data
-
-    def delayed_start(self, start_time):
-        if start_time:
-            logger.info('Experiment will start at {}'.format(
-                datetime.strftime(start_time, '%H:%M on %b %d, %Y ')))
-            time.sleep((start_time-datetime.now()).total_seconds())
-            notifications.send_email(
-                notifications.Messages.delayed_start.format(start_time, '%H:%M'))
-            logger.info('Resuming...')
 
     def restart_from_backup(self):
         """
@@ -83,7 +73,7 @@ class Laboratory():
 
         logger.info('Step {}:\n'.format(i+1))
         self.display_controlfile(self.controlfile.iloc[[i]])
-        logger.info(finish_time)
+        # logger.info(finish_time)
 
     def instrument_errors(self, email_alert=False):
         """Checks the status of all devices. If desired, this function can send an email when something has become disconnected
@@ -178,19 +168,18 @@ class Experiment(Laboratory):
                         'voltage', 'x_position', 'h2', 'co2', 'co', 'z', 'theta', 'fugacity', 'ratio']
         return pd.DataFrame(columns=column_names)
 
-    def run(self, controlfile):
+    def run(self, controlfile=None):
         """Being a new experiment defined by the instructions in controlfile.
 
         Args:
             controlfile (str, optional): Path to controlfile containing step by step instructions for the experiment.
         """
-
         self.setup(controlfile)
-        self.delayed_start(config.START_TIME)
+        self.data = pd.DataFrame()
 
         # iterate through control file until finished
         for i, step in self.controlfile.iterrows():
-            self.data = self.get_empty_dataframe()
+            # self.data = self.get_empty_dataframe()
             self.header(step, i)
 
             # set the required heating rate if a change is needed
@@ -202,22 +191,22 @@ class Experiment(Laboratory):
 
             # save the start time of this step
             step['time'] = datetime.now()
-
             # enter the main measurement loop
-            if self.measurement_cycle(step):
-                logger.info('Step {} complete!'.format(i+1))
-                self.export_data(i+1, step)
-
-                # if i < self.controlfile.shape[0]-1:
-                #     est_completion = datetime.strftime(datetime.now() + timedelta(minutes=step.est_total_mins),'%H:%M %A, %b %d')
-                #     notifications.send_email(notifications.Messages.step_complete.format(i+1,self.controlfile.loc[i+1,'target_temp'],i+2,i+2,est_completion))
+            data = self.measurement_cycle(step, i)
+            if not data.empty:
+                logger.info('Step {} complete!'.format(i))
+                if i < self.controlfile.shape[0]-1:
+                    est_completion = datetime.strftime(datetime.now() + step.est_total_mins,'%H:%M %A, %b %d')
+                    notifications.send_email('success',data=data,args=(i+1,self.controlfile.loc[i+1,'target_temp'],i+2,i+2,est_completion))
+                else:
+                    notifications.send_email("You're experiment is finished!",data=data)
             else:
                 logger.critical('Something wen\'t wrong!')
                 break
 
         self.shut_down()
 
-    def measurement_cycle(self, step):
+    def measurement_cycle(self, step, i):
         """
         This is the main measurement loop of the program. All data is accessed and saved from within this loop
 
@@ -226,10 +215,15 @@ class Experiment(Laboratory):
 
         self.furnace.timer_duration(minutes=3.5*step.interval)
         self.errors = 0
-
+        data = []
+        # c=0
         while True:
-            self.measurement = {}
-            self.progress_bar = tqdm(total=6+len(self.settings['freq']))
+            self.measurement = {'step': i}
+            self.progress_bar = tqdm(
+                total = 6+len(self.settings['freq']),
+                bar_format = '{l_bar}{bar}{postfix}',
+                disable = self.debug,
+                )
 
             self.furnace.reset_timer()
 
@@ -241,12 +235,13 @@ class Experiment(Laboratory):
             self.set_fugacity(step)
             self.get_gas()
             self.get_impedance()
-            self.data = self.data.append(self.measurement, ignore_index=True)
+            data.append(self.measurement)
+            self.progress_bar.set_postfix_str('Success')
+            self.progress_bar.close() #might not be necessary
 
-            CountdownTimer(hide=self.debug).start(
-                {'minutes': step.interval}, 
-                self.measurement['time'], 
-                message='Next measurement in...')
+            CountdownTimer(hide=self.debug,minutes=step.interval).start(
+                start_time = self.measurement['time'], 
+                message = 'Next measurement in...')
                 
             logger.debug('Countdown finished. Checking for instrument errors.')
 
@@ -255,10 +250,14 @@ class Experiment(Laboratory):
                 logger.debug('Found instruments errors. Quitting program')
                 return
 
+            # c+=1
+            # # test break
+            # if c >= 1:
+            #     return self.save_and_export(data, step, i)
+
             # check to see if it's time to begin the next loop
             if self.break_cycle(step, self.measurement['indicated']):
-                logger.debug('Step complete. Moving to next step')
-                return True
+                return self.save_and_export(data, step, i)
 
             if self.errors > 10:
                 return False
@@ -266,10 +265,17 @@ class Experiment(Laboratory):
     def begin(self):
 
         self.mean_temp = self.daq.mean_temp
-        message = 'Collecting data @ {} degC...'.format(str(self.mean_temp))
-        logger.debug(message)
-        self.progress_bar.set_description_str(message)
-        self.measurement['time'] = datetime.now()
+        logger.debug('Collecting data @ {:.1f}\N{DEGREE SIGN}C'.format(self.mean_temp))
+        now = datetime.now()
+
+        self.progress_bar.set_description_str(
+            '{time} @ {temp:.1f}\N{DEGREE SIGN}C'.format(
+                time=now.strftime('%H:%M'),
+                temp=self.mean_temp,
+                )
+            
+            )
+        self.measurement['time'] = now
 
     def set_fugacity(self, step):
         """Sets the correct gas ratio for the given buffer. Percentage offset from a given buffer can be specified by 'offset'. Type of gas to be used for calculations is specified by gas_type.
@@ -342,7 +348,6 @@ class Experiment(Laboratory):
 
         self.daq.toggle_switch('thermo')
 
-
     def update_progress_bar(self,message=None):
         self.progress_bar.update(1)
         self.progress_bar.set_postfix_str(message)
@@ -355,9 +360,10 @@ class Experiment(Laboratory):
         :type controlfile: string
         """
         if not controlfile:
-            raise SetupError('You must specify a valid control file!')
-        else:
-            controlfile = pd.read_excel(controlfile, header=1)
+            controlfile = config.PROJECT_NAME + '.xlsx'
+        #     # raise SetupError('You must specify a valid control file!')
+        # else:
+        controlfile = pd.read_excel(controlfile, header=1)
 
         if not self.check_controlfile(controlfile):
             raise SetupError('Incorrect control file format!')
@@ -422,11 +428,28 @@ class Experiment(Laboratory):
         else:
             self.settings['freq'] = np.around(np.linspace(min_f, max_f, n))
 
-    def export_data(self, i, step):
+    def save_and_export(self, data, step, i):
 
+        # convert step data to dataframe
+        data = pd.DataFrame(data)
+        data.set_index('time',inplace=True)
+
+        # concatenate to project dataframe and save
+        # this overwrites the previous so that only one copy exists of the .h5 file
+        self.data = pd.concat([self.data,data],sort=False)
+        fname = os.path.join(self.project_directory,'data.pkl')
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.data.to_pickle(fname)
+
+            # data.to_hdf(fname,key='step_{}'.format(i))
+
+
+
+        # save data from the present step into it's own csv file
         file_name = os.path.join(
             self.project_directory, 'Step {}.csv'.format(i))
-
         with open(file_name, 'w', newline="") as f:
             f.write('project_name: {}\n'.format(config.PROJECT_NAME))
             f.write('start: {}\n'.format(datetime.strftime(
@@ -437,20 +460,12 @@ class Experiment(Laboratory):
             f.write('frequencies: {}\n\n'.format(
                 ','.join(map(str, self.settings['freq']))))
 
-            self.data.to_csv(
+            data.to_csv(
                 path_or_buf=f,
                 sep=',',
-                index=False,
-            )
+                )
 
-        pkl_file = os.path.join(self.project_directory,
-                                config.PROJECT_NAME + '.pkl')
-        try:
-            old = pd.read_pickle(pkl_file)
-        except FileNotFoundError:
-            self.data.to_pickle(pkl_file)
-        else:
-            pd.concat([old, self.data], ignore_index=True).to_pickle(pkl_file)
+        return data
 
     def create_project_directory(self):
         project_folder = os.path.join(config.DATA_DIR, config.PROJECT_NAME)
