@@ -6,6 +6,7 @@ Laboratory
 ..     :undoc-members:
 ..     :show-inheritance:
 
+.. _Laboratory:
 Laboratory
 ^^^^^^^^^^^
 

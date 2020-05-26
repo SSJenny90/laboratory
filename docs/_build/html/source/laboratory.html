@@ -37,7 +37,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Configuration" href="config.html" />
-    <link rel="prev" title="Instrument Calibration" href="../guide/calibration.html" /> 
+    <link rel="prev" title="Controlling the laboratory" href="../guide/troubleshoot.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -87,11 +87,14 @@
 <li class="toctree-l1"><a class="reference internal" href="../guide/safety.html">Safety Considerations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../guide/SOPs.html">Standard Operating Procedure</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../guide/calibration.html">Instrument Calibration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../guide/lab_control.html">Controlling the laboratory</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../guide/experimentation.html">Running an experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../guide/troubleshoot.html">Controlling the laboratory</a></li>
 </ul>
 <p class="caption"><span class="caption-text">Documentation</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Laboratory</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#id1">Laboratory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id2">Laboratory</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#experiment">Experiment</a></li>
 </ul>
 </li>
@@ -166,8 +169,8 @@
             
   <div class="section" id="laboratory">
 <h1>Laboratory<a class="headerlink" href="#laboratory" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="id1">
-<h2>Laboratory<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="id2">
+<h2>Laboratory<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
 <dl class="py class">
 <dt id="laboratory.laboratory.Laboratory">
 <em class="property">class </em><code class="sig-prename descclassname">laboratory.laboratory.</code><code class="sig-name descname">Laboratory</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">project_name</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">debug</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="headerlink" href="#laboratory.laboratory.Laboratory" title="Permalink to this definition">¶</a></dt>
@@ -367,18 +370,7 @@ processing and visualisation</p></td>
 <dl class="py method">
 <dt id="laboratory.laboratory.Experiment.get_gas">
 <code class="sig-name descname">get_gas</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#laboratory.laboratory.Experiment.get_gas" title="Permalink to this definition">¶</a></dt>
-<dd><p>Gets data from the mass flow controller specified by gas_type and saves to Data structure and file</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>gas_type</strong> (<em>str</em>) – type of gas to use when calculating ratio (either ‘h2’ or ‘co’)</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>[mass_flow, pressure, temperature, volumetric_flow, setpoint]</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>list</p>
-</dd>
-</dl>
+<dd><p>Gets data from the mass flow controllers and saves to the current measurement run.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -390,20 +382,19 @@ processing and visualisation</p></td>
 <dl class="py method">
 <dt id="laboratory.laboratory.Experiment.load_frequencies">
 <code class="sig-name descname">load_frequencies</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">min_f</span><span class="o">=</span><span class="default_value">20</span></em>, <em class="sig-param"><span class="n">max_f</span><span class="o">=</span><span class="default_value">2000000</span></em>, <em class="sig-param"><span class="n">n</span><span class="o">=</span><span class="default_value">50</span></em>, <em class="sig-param"><span class="n">log</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="headerlink" href="#laboratory.laboratory.Experiment.load_frequencies" title="Permalink to this definition">¶</a></dt>
-<dd><p>Loads an np.array of frequency values.</p>
+<dd><p>Loads an np.array</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>n</strong> (<em>int</em>) – number of desired frequencies</p></li>
-<li><p><strong>min_f</strong> (<em>int</em><em>,</em><em>float</em>) – minimum frequency (Hz) - may not be below default value of 20 Hz</p></li>
-<li><p><strong>max_f</strong> (<em>int</em><em>,</em><em>float</em>) – maximum frequency (Hz) - may not exceed default value of 2*10^6 Hz</p></li>
-<li><p><strong>log</strong> (<em>boolean</em>) – specifies whether array is created in linear or log space. default to logspace</p></li>
+<li><p><strong>min_f</strong> (<em>int</em><em>, </em><em>optional</em>) – Minimum frequency to generate frequency list from. Defaults to :var:~`config.MINIMUM_FREQ`.</p></li>
+<li><p><strong>max_f</strong> (<em>int</em><em>, </em><em>optional</em>) – Minimum frequency to generate frequency list from. Defaults to config.MAXIMUM_FREQ.</p></li>
+<li><p><strong>n</strong> (<em>int</em><em>, </em><em>optional</em>) – Desired length to construct frequency list out of. Defaults to 50.</p></li>
+<li><p><strong>log</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether the frequency list should be linear from min to max or log scale. Defaults to config.FREQ_LOG_SCALE.</p></li>
 </ul>
 </dd>
-<dt class="field-even">Example</dt>
-<dd class="field-even"><p></p></dd>
 </dl>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">lab</span> <span class="o">=</span> <span class="n">Laboratory</span><span class="o">.</span><span class="n">Setup</span><span class="p">()</span>
+<dl>
+<dt>..example</dt><dd><div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">lab</span> <span class="o">=</span> <span class="n">Laboratory</span><span class="o">.</span><span class="n">Setup</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">lab</span><span class="o">.</span><span class="n">load_frequencies</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">lab</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">freq</span><span class="p">)</span>
 <span class="go">[1000 2000 3000 4000 5000 6000 7000 8000 9000 10000]</span>
@@ -412,11 +403,13 @@ processing and visualisation</p></td>
 <span class="go">[1000 1291.55 1668.1 2154.43 2782.56 3593.81 4641.59 5994.84 7742.64 10000]</span>
 </pre></div>
 </div>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
 <dt id="laboratory.laboratory.Experiment.measurement_cycle">
-<code class="sig-name descname">measurement_cycle</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">step</span></em><span class="sig-paren">)</span><a class="headerlink" href="#laboratory.laboratory.Experiment.measurement_cycle" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">measurement_cycle</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">step</span></em>, <em class="sig-param"><span class="n">i</span></em><span class="sig-paren">)</span><a class="headerlink" href="#laboratory.laboratory.Experiment.measurement_cycle" title="Permalink to this definition">¶</a></dt>
 <dd><p>This is the main measurement loop of the program. All data is accessed and saved from within this loop</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -427,13 +420,11 @@ processing and visualisation</p></td>
 
 <dl class="py method">
 <dt id="laboratory.laboratory.Experiment.run">
-<code class="sig-name descname">run</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">controlfile</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="headerlink" href="#laboratory.laboratory.Experiment.run" title="Permalink to this definition">¶</a></dt>
-<dd><p>starts a new set of measurements. requires a control file that contains
-specific instruction for the instruments to follow. see the tutorial section
-for help setting up a control file.</p>
+<code class="sig-name descname">run</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">controlfile</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#laboratory.laboratory.Experiment.run" title="Permalink to this definition">¶</a></dt>
+<dd><p>Being a new experiment defined by the instructions in controlfile.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>controlfile</strong> (<em>str</em>) – path to control file</p>
+<dd class="field-odd"><p><strong>controlfile</strong> (<em>str</em><em>, </em><em>optional</em>) – Path to controlfile containing step by step instructions for the experiment.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -480,7 +471,7 @@ for help setting up a control file.</p>
         <a href="config.html" class="btn btn-neutral float-right" title="Configuration" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="../guide/calibration.html" class="btn btn-neutral float-left" title="Instrument Calibration" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="../guide/troubleshoot.html" class="btn btn-neutral float-left" title="Controlling the laboratory" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
