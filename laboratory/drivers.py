@@ -107,16 +107,6 @@ class LCR(USBSerialInstrument):
         device          port name
         =============== ===========================================================
 
-        =============== ===========================================================
-        Method          Description
-        =============== ===========================================================
-        connect         attempt to connect to the LCR meter
-        configure       configures device for measurements
-        write_freq      transfers desired frequencies to the LCR meter
-        trigger         gets impedance for one specified frequency
-        get_complexZ    retrieves complex impedance from the device
-        reset           resets the device
-        =============== ===========================================================
         """
 
     def __init__(self):
@@ -216,19 +206,6 @@ class DAQ(USBSerialInstrument):
         switch          '205','206' - channels for switch between LCR and temp measurements
         address         computer port address
         ============== ======================================================
-
-        =============== ===========================================================
-        Methods         message
-        =============== ===========================================================
-        connect         attempt to connect to the LCR meter
-        configure       configures device for measurements
-        get_temp        gets temperature from te1,te2 and tref
-        get voltage     gets voltage measurement
-        read_errors     reads errors stored in the DAQ
-        reset           resets the device
-        shut_down       shuts down the device
-        toggle_switch   switches configuration between temp and voltage
-        =============== ===========================================================
 
         .. note::
 
@@ -385,18 +362,6 @@ class Furnace(minimalmodbus.Instrument):
         address         computer port address
         =============== ===========================================================
 
-        =============== ===========================================================
-        Methods         message
-        =============== ===========================================================
-        connect          attempt to connect to the LCR meter
-        set_temp         set temperature of furnace
-        get_temp         get temperature from furnace
-        set_heatrate     set heatrate of furnace
-        get_heatrate     get heatrate from furnace
-        set_other        set another parameter on furnace
-        get_other        get another parameter from furnace
-        reset            resets the device
-        =============== ===========================================================
         """
 
     default_temp = config.RESET_TEMPERATURE
@@ -718,8 +683,6 @@ class Furnace(minimalmodbus.Instrument):
                 return values
 
 
-
-
 class Stage():
     """Driver for the linear stage
 
@@ -732,17 +695,6 @@ class Stage():
     max_xpos        maximum x-position of the stage
     address         computer port address
     position        current position of the stage
-    =============== ===========================================================
-
-    =============== ===========================================================
-    Methods         message
-    =============== ===========================================================
-    home            move to the center of the stage
-    connect         attempt to connect to the LCR meter
-    move            moves the stage the desired amount in mm
-    go_to           moves the stage to an absolute position
-    speed           get or set the current speed of the stage
-    reset           resets the device position to 0
     =============== ===========================================================
     """
 
@@ -964,19 +916,6 @@ class AlicatController(FlowController):
             The precision of the flow controller
         upper_limit : int
             The maximum flow rate of the controller
-
-
-        =============== ===========================================================
-        Methods         message
-        =============== ===========================================================
-        get_massflow    gets massflow from controller
-        set_massflow    sets massflow on controller
-        get_pressure    gets pressure from controller
-        get_temp        gets pressure from controller
-        get_vol_flow    gets volumetric flow from controller
-        get_setpoint    gets current set point from controller
-        reset           resets the device
-        =============== ===========================================================
 
         :Example:
 
