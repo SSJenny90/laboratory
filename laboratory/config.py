@@ -1,9 +1,5 @@
-"""
-This is a configuration file for setting up the laboratory. It contains settings to set the name of the the experiment, sample dimensions, instrument addresses and physical constants. Experiment name and sample dimensions should be modified with each new experiment. Everything else can remain as is unless the physical setup of the lab has changed.
-"""
 import os
-from datetime import datetime
-
+from .setup import *
 
 #-------------------Experiment settings-------------------
 PROJECT_NAME = '2 Week Test'
@@ -14,75 +10,31 @@ SAMPLE_AREA = 97.686 #in mm^2 - ONLY SET IF SAMPLE IS NOT A COMPLETE DISK AND AR
 
 MINIMUM_FREQ = 20       #in Hz
 MAXIMUM_FREQ = 2000000  #in Hz (2MHz)
-FREQ_LOG_SCALE = False
-FREQUENCY_LIST = []
+N_FREQ = 50 #length of generated freq list
+FREQ_LOG_SCALE = False  # will generate a log-spaced list of frequency values for the experiment
 
+# uncomment if you want use predefined frequencies rather than a generated list
+# FREQUENCY_LIST = []
+
+# Setting this to true will send log messages to console and disable progress bars and countdown timers
 DEBUG = False
 
-#if you wish to receive email updates when the program completes each step
+#-------------------Folder defaults-------------------
+# change these to specify a different directory to save data files and log files
+DATA_DIR = os.path.join(ROOT,'data')
+LOG_DIR = os.path.join(ROOT,'log')
+
+# if you wish to receive email updates when the program completes each step
+# emails will be received from geophysicslabnotifications@gmail.com
+# emails will also include a .csv file of the data collected over the step.
+# note: this is a beta feature and should work, however it depends on google security settings of the outgoing account
 EMAIL = {
     'pw': os.environ.get('EMAIL_PW',''),
     'from': os.environ.get('EMAIL_FROM',''),
     'to': 'samuel.jennings@adelaide.edu.au',
 }
 
-#-------------------Folder defaults-------------------
-ROOT = os.getcwd()
-DATA_DIR = os.path.join(ROOT,'data')
-LOG_DIR = os.path.join(ROOT,'log')
-CALIBRATION_DIR = os.path.join(ROOT,'laboratory','calibration')
 
-
-GLOBAL_MAXTRY = 5
-#-------------------DAQ settings-------------------
-DAQ = {
-    'address': 'USB0::0x0957::0x2007::MY49021284::INSTR',
-    'channels': {
-        'reference_temperature': 101,
-        'electrode_a': 104,
-        'electrode_b': 105,
-        'voltage': 103,
-        'switch': [205,206],
-    },
-    'thermistor': 10,
-    'temp_integration_time':10,
-    'volt_integration_time':1,
-}
-
-#-------------------LCR settings-------------------
-LCR_ADDRESS = 'USB0::0x0957::0x0909::MY46312484::INSTR'
-
-#-------------------Furnace settings-------------------
-FURNACE_ADDRESS = 'COM8'
-RESET_TEMPERATURE = 40       #temperature the furnace resets to
-
-#-------------------Stage settings-------------------
-STAGE = {
-    'address': 'COM5',
-    'subdivision': 2, #from back of motion controller
-    'step_angle': 0.9, #from the side of the stage
-    'pitch': 4, #in mm - from the optics focus website
-    'max_stage_position': 10000,
-}
-
-
-#-------------------Gas settings-------------------
-MFC_ADDRESS = 'COM6'    #for windows
-CO2 = { 'address':'A',
-        'upper_limit': 200,
-        'precision':2}
-
-CO_A = {'address':'B',
-        'upper_limit': 50,
-        'precision':2}
-
-CO_B = {'address':'C',
-        'upper_limit': 2,
-        'precision':3}
-
-H2 = {  'address':'D',
-        'upper_limit': 50,
-        'precision':2}
 
 
 
