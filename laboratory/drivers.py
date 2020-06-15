@@ -129,13 +129,15 @@ class LCR(USBSerialInstrument):
         line = self.read('FETCh?')
         return {key: float('nan') if value == 9.9e+37 else value for key, value in zip(['z', 'theta'], line)}
 
-    def configure(self, freq):
+    def configure(self, freq=None):
         """Appropriately configures the LCR meter for measurements"""
         logger.debug('Configuring LCR meter...')
         self.reset()
         self._set_format()
         self.display('list')
         self.function()
+        if not freq:
+            freq = np.around(np.geomspace(20, 20**6, 50))
         self.write_freq(freq)
         self.list_mode('step')
         self._set_source()
@@ -160,7 +162,7 @@ class LCR(USBSerialInstrument):
 
     def function(self, mode='impedance'):
         """Sets up the LCR meter for complex impedance measurements"""
-        return self.write('FUNC:IMP ZTR', "Setting measurement type", mode)
+        return self.write('FUNC:IMP ZTD', "Setting measurement type", mode)
 
     def _set_continuous(self, mode='ON'):
         """Allows the LCR meter to auto change state from idle to 'wait for trigger'"""
