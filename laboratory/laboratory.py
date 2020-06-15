@@ -420,8 +420,8 @@ class Experiment(Laboratory):
 
         logger.debug('Creating frequency data...')
 
-        if config.FREQUENCY_LIST:
-            self.settings['freq'] = np.array(config.FREQUENCY_LIST)
+        if hasattr(config,'FREQUENCY_LIST'):
+            self.settings['freq'] = np.array(getattr(config,'FREQUENCY_LIST'))
         elif log:
             self.settings['freq'] = np.around(np.geomspace(min_f, max_f, n))
         else:
