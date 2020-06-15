@@ -6,7 +6,7 @@ from datetime import datetime
 
 
 #-------------------Experiment settings-------------------
-PROJECT_NAME = '2 Week Test'
+PROJECT_NAME = 'Test B'
 SAMPLE_THICKNESS = 2.6 #in mm
 SAMPLE_DIAMETER = 12.7 #in mm
 SAMPLE_AREA = 97.686 #in mm^2 - ONLY SET IF SAMPLE IS NOT A COMPLETE DISK AND AREA MUST BE CALCULATED MANUALLY
@@ -14,8 +14,8 @@ SAMPLE_AREA = 97.686 #in mm^2 - ONLY SET IF SAMPLE IS NOT A COMPLETE DISK AND AR
 
 MINIMUM_FREQ = 20       #in Hz
 MAXIMUM_FREQ = 2000000  #in Hz (2MHz)
-FREQ_LOG_SCALE = False
-FREQUENCY_LIST = []
+FREQ_LOG_SCALE = True
+# FREQUENCY_LIST = []
 
 DEBUG = False
 
