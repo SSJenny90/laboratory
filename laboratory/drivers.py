@@ -1205,6 +1205,7 @@ class GasControllers():
             return False
 
         return [log_fugacity, ratio]
+    
     def fugacity_co(self, fo2p, temp):
         """Calculates the ratio CO2/CO needed to maintain a constant oxygen fugacity at a given temperature.
 
@@ -1320,9 +1321,9 @@ class GasControllers():
                 a = buffer['a1']
 
             if len(a) == 2:
-                return 10**(a[0]/temp + a[1])
+                return a[0]/temp + a[1]
             elif len(a) == 3:
-                return 10**(a[0]/temp + a[1] + a[2]*(pressure - 1e5)/temp)
+                return a[0]/temp + a[1] + a[2]*(pressure - 1e5)/temp
 
         BUFFERS = {
             'iw': {  # Iron-Wuestite - Myers and Eugster (1983)
@@ -1333,23 +1334,23 @@ class GasControllers():
                 'a2': [-24441.9, 13.296],       # 848 to 1413 K
                 'Tc': 848,  # K
             },
-            'wm': {
+            'wm': { # O'Neill (1988)
                 'a1': [-32356.6, 17.560]
             },
-            'mh': {
+            'mh': { # Myers and Eugster (1983)
                 'a1': [-25839.1, 20.581],        # 298 to 848 K
                 'a2': [-23847.6, 18.486],       # 848 to 1413 K
                 'Tc': 943,  # K
             },
-            'qif': {
+            'qif': { # Myers and Eugster (1983)
                 'a1': [-30146.6, 14.501],        # 298 to 848 K
                 'a2': [-27517.5, 11.402],       # 848 to 1413 K
                 'Tc': 848,  # K
             },
-            'nno': {
+            'nno': { # a[0:1] from Myers and Gunter (1979) a[3] from Dai et al. (2008)
                 'a1': [-24920, 14.352, 4.6e-7]
             },
-            'mmo': {
+            'mmo': { # a[3] from Dai et al. (2008)
                 'a1': [-30650, 13.92, 5.4e-7]
             },
             'cco': {
@@ -1363,34 +1364,19 @@ class GasControllers():
             },
         }
 
-        # #Many of these empirical relationships are determined fo2 in atm.
-        # #These relationships have been converted to Pa.
+        # Many of these empirical relationships are determined fo2 in atm.
+        # These relationships have been converted to Pa.
         # if buffer == 'iw': # Iron-Wuestite
         #     # Myers and Eugster (1983)
         #     # a[1] = [-26834.7 11.477 5.2e-7]        # 833 to 1653 K
         #     # a[3] pressure term from Dai et al. (2008)
         #     # a = [-2.7215e4 11.57 5.2e-7] - O'Neill (1988)
         #     a1 = [-27538.2, 11.753]
-        # elif buffer in ['qfm','fmq','fqm']: # Fayalite-Quartz-Magnetite
-        #     # Myers and Eugster (1983)
-        #     a1 = [-27271.3, 16.636]        # 298 to 848 K
-        #     a2 = [-24441.9, 13.296]        # 848 to 1413 K
-        #     Tc = 848 # K
         # elif buffer == 'wm': # Wuestite-Magnetite
         #     # # Myers and Eugster (1983)
         #     # a[1] = [-36951.3 21.098]        # 1273 to 1573 K
         #     # O'Neill (1988)
         #     a1 = [-32356.6, 17.560]
-        # elif buffer == 'mh': # Magnetite-Hematite
-        #     # Myers and Eugster (1983)
-        #     a1 = [-25839.1, 20.581]        # 298 to 950 K
-        #     a2 = [-23847.6, 18.486]        # 943 to 1573 K
-        #     Tc = 943 # K
-        # elif buffer == 'qif': # Quartz-Iron-Fayalite
-        #     # Myers and Eugster (1983)
-        #     a1 = [-30146.6, 14.501]        # 298 to 848 K
-        #     a2 = [-27517.5, 11.402]        # 848 to 1413 K
-        #     Tc = 848 # K
         # elif buffer == 'osi': # Olivine-Quartz-Iron
         #     # Nitsan (1974)
         #     Xfa = 0.10
@@ -1433,16 +1419,10 @@ class GasControllers():
         #     raise ValueError('(fugacityO2): Unknown buffer.')
 
         try:
-            return math.log10(fug(BUFFERS[buffer], temp, pressure))
+            return fug(BUFFERS[buffer], temp, pressure)
         except KeyError:
             pass
 
-        # if temp < Tc:
-        #     fo2 = fug(a1,temp,pressure)
-        # else:
-        #     fo2 = fug(a2,temp,pressure)
-
-        # return math.log10(fo2)
 
 
 def get_ports():
