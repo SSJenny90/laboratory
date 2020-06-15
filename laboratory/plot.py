@@ -28,76 +28,12 @@ import numpy as np
 
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
-from laboratory import config
+from laboratory import config, processing
 from matplotlib.offsetbox import AnchoredText
-from scipy import optimize
 
+FREQ = np.around(np.geomspace(20, 2000000, 50))
 
-def circle_fit(x, y, ax):
-
-    xc, yc, R = leastsq_circle(x, y)[:3]
-
-    pi = np.pi
-    theta_fit = np.linspace(0, pi, 180)  # semi circle
-
-    x_fit = xc + R*np.cos(theta_fit)
-    y_fit = yc + R*np.sin(theta_fit)
-
-    # plot circle as blue line
-    ax.plot(x_fit, y_fit, 'b-', lw=1, label='lsq_fit')
-    # plot center of circle as blue cross
-    ax.plot([xc], [yc], 'bx', mec='y', mew=1, label='fit_center')
-
-
-def impedance_fit(Z, theta):
-
-    Z = np.array(Z)
-    theta = np.array(theta)
-
-    x = np.flipud(np.multiply(Z, np.cos(theta)))
-    y = np.flipud(np.multiply(Z, np.sin(theta)))
-
-    # print(x)
-
-    i = 20
-    for i in range(i, len(x)-1):
-        if y[i+1] - y[i] > y[i] - y[i-1]:
-            break
-
-    A = x[:i]*2
-    # print(A)
-    r = np.dot(A, A)**-1 * np.dot(A, (x[:i]**2 + y[:i]**2))
-    diameter = 2*r
-
-    return diameter
-
-
-def leastsq_circle(x, y):
-    # xc - the center of the circle on the x-coordinates
-    # yc = center of the circle on the y coordinates
-    # R = mean distance to center of circle
-
-    def _calc_R(x, y, xc, yc):
-        """ calculate the distance of each 2D points from the center (xc, yc) """
-        return np.sqrt((x-xc)**2 + (y-yc)**2)
-
-    def _f(c, x, y):
-        """calculate the algebraic distance between the data points and the mean circle centered at c=(xc, yc) """
-        Ri = _calc_R(x, y, *c)
-        return _calc_R(x, y, *c) - Ri.mean()
-
-    # coordinates of the barycenter
-    x_m = np.mean(x)
-    y_m = np.mean(y)
-
-    center_estimate = x_m, y_m
-    center, ier = optimize.leastsq(_f, center_estimate, args=(x, y))
-    xc, yc = center
-    Ri = _calc_R(x, y, *center)  # distance to center for each point
-    R = Ri.mean()  # mean representing radius of the circle
-    residu = np.sum((Ri - R)**2)
-    return xc, yc, R, residu
-
+K_OHM = 'k\Omega'
 
 def index_temp(T, Tx):
     # returns the index of T nearest to the specified temp Tx. For use in colecole plots
@@ -105,37 +41,23 @@ def index_temp(T, Tx):
     return [index, T.flat[index]]
 
 
-def get_Re_Im(Z, theta):
-    Z = np.array(Z)
-    theta = np.array(theta)
-    Re = np.multiply(Z, np.cos(theta))
-    Im = np.absolute(np.multiply(Z, np.sin(theta)))
+def index_data(data, step, time):
+    if step is not None:
+        data = data.loc[data.step == step]
+    if time:
+        data = data[time[0]:time[1]]
 
-    return Re, Im
-
-
-def calculate_resistivity(Z, theta):
-    """Calculates the resistivity of the sample from the resistance and sample dimensions supplied in config.py"""
-
-    # convert z and theta to real and imaginary components
-    Re, Im = get_Re_Im(Z, theta)
-
-    # calculate radius from least squares circle fit
-    radius = leastsq_circle(Re, Im)[2]
-
-    resistance = 2*radius
-    thickness = config.SAMPLE_THICKNESS * 10 ** -3
-    radius = (config.SAMPLE_DIAMETER/2) * 10 ** -3
-    area = np.pi * radius**2
-
-    return thickness / area * resistance
+    return data
 
 
-def voltage(data, kwargs={}):
+def voltage(data, step=None, time=[], kwargs={}):
     """Plots voltage versus time"""
+    data = index_data(data,step,time)
+    hours = data.index.seconds / 60 / 60 + data.index.days * 24
+
     fig, ax = plt.subplots()
 
-    ax.plot(data['voltage'], 'rx')
+    ax.plot(hours, data['voltage'], 'rx')
     ax.set_ylabel('Voltage [mV]')
     ax.tick_params(direction='in')
     ax.set_xlabel('Time Elapsed [hours]')
@@ -158,15 +80,18 @@ def cond_time(data, kwargs={}):
     plt.show()
 
 
-def temperature(data, kwargs={}):
+def temperature(data, step=None, time=[], kwargs={}):
     """Plots furnace indicated and target temperature, thermocouple temperature and thermistor data versus time elapsed. A dictionary of key word arguments may be passed through to customize this plot"""
+
+    data = index_data(data,step,time)
+    hours = data.index.seconds / 60 / 60 + data.index.days * 24
 
     fig, ax = plt.subplots()
     # ax.plot(data['time_elapsed'],thermo.tref,'r-')
-    ax.plot(data['thermo_1'], '.', label='Te1')
-    ax.plot(data['thermo_2'], '.', label='Te2')
-    ax.step(data['target'], 'y', linestyle='--', label='Target temperature')
-    ax.plot(data['indicated'], label='Furnace indicated')
+    ax.plot(hours, data['thermo_1'], '.', label='Te1')
+    ax.plot(hours, data['thermo_2'], '.', label='Te2')
+    ax.step(hours, data['target'], 'y', linestyle='--', label='Target temperature')
+    ax.plot(hours, data['indicated'], label='Furnace indicated')
 
     ax.set_ylabel(r'$Temperature [\circ C]$')
     ax.set_xlabel('Time Elapsed [Hours]')
@@ -176,7 +101,7 @@ def temperature(data, kwargs={}):
     plt.show()
 
 
-def cole(data, temp_list, start=0, end=None, fit=False, **kwargs):
+def cole(data, n=1, step=None, time=[], start=0, end=None, fit=False, **kwargs):
     """Creates a Cole-Cole plot (imaginary versus real impedance) at a given temperature. Finds the available data to the temperature specified by 'temp'. A linear least squares circle fit can be added by setting fit=True.
 
     :param temp: temperature in degrees C
@@ -185,33 +110,31 @@ def cole(data, temp_list, start=0, end=None, fit=False, **kwargs):
 
     fig, ax = plt.subplots()
 
-    if not isinstance(temp_list, list):
-        temp_list = [temp_list]
+    data = index_data(data, step, time)
+    index = np.round(np.linspace(0, len(data) - 1, n)).astype(int)
+    index=[100]
+    # hours = data.index.seconds / 60 / 60 + data.index.days * 24
+    data = data.iloc[index]
 
-    for temp in temp_list:
-        [index, Tval] = index_temp(np.array(data['thermo_1']), temp)
-        Z = data['z'][index][start:end]
-        theta = data['theta'][index][start:end]
-        Re, Im = get_Re_Im(Z, theta)
-
-        p = ax.scatter(Re, Im, c=data['freq']
-                       [start:end], norm=colors.LogNorm())
+    for _, row in data.iterrows():
+        Re, Im = processing.get_Re_Im(row.z[start:end], row.theta[start:end])
+        p = ax.scatter(Re/1000, Im/1000, c=FREQ[start:end], norm=colors.LogNorm())
 
         ax.set_xlim(0, np.nanmax(Re))
         ax.set_ylim(bottom=0)
         if fit:
-            circle_fit(Re, Im, ax)
-            ax.axis('scaled')
-        else:
-            ax.axis('equal')
+            processing.circle_fit(Re, Im, ax)
+            # ax.axis('scaled')
+        # else:
+        ax.axis('equal')
 
-    ax.set_ylabel('-Im(Z)')
-    ax.set_xlabel('Re(Z)')
+    ax.set_ylabel(r'$-Im(Z) [{}]$'.format(K_OHM))
+    ax.set_xlabel(r'$Re(Z) [{}]$'.format(K_OHM))
     ax.ticklabel_format(style='sci', scilimits=(-3, 4), axis='both')
     ax.set_title('Cole-Cole')
 
-    atxt = AnchoredText('@ ' + str(Tval) + r'$^\circ$ C', loc=2)
-    ax.add_artist(atxt)
+    # atxt = AnchoredText('@ ' + str(Tval) + r'$^\circ$ C', loc=2)
+    # ax.add_artist(atxt)
 
     cb = fig.colorbar(p, ax=ax, orientation="horizontal")
     cb.set_label('Frequency')
@@ -220,13 +143,18 @@ def cole(data, temp_list, start=0, end=None, fit=False, **kwargs):
     plt.show()
 
 
-def gas(data):
+def gas(data, step=None, time=[]):
     "Plots mass_flow data for all gases versus time elapsed"
+
+    data = index_data(data,step,time)
+    hours = data.index.seconds / 60 / 60 + data.index.days * 24
+
+
     fig, (ax1, ax2) = plt.subplots(nrows=2, sharex=True)
 
-    ax1.plot(data['h2'], 'm.', label='H2')
-    ax1.plot(data['co2'], 'b.', label='CO2')
-    ax1.plot(data['co'], 'g.', label='CO')
+    ax1.plot(hours, data['co2'], 'b.', label='CO2')
+    ax1.plot(hours, data['h2'], 'm.', label='H2')
+    ax1.plot(hours, data['co'], 'g.', label='CO')
 
     ax1.set_ylabel('Mass Flow [SCCM]')
     ax1.set_ylim(bottom=0)
@@ -234,26 +162,34 @@ def gas(data):
     ax1.set_title('Gas levels')
     ax1.legend()
 
-    ax2.plot(data['fugacity'], 'r--', label='Log[Fugacity]')
+    c = 'tab:red'
+    ax2.plot(hours, data['fugacity'], '--', color=c, label='Log[Fugacity]')
     ax2.set_xlabel('Time elapsed [hours]')
-    ax2.set_ylabel('log fo2p [Pascals]')
+    ax2.set_ylabel('log fo2p [Pascals]',color=c)
+    ax2.tick_params(axis='y', labelcolor=c)
+
+    c = 'tab:blue'
+    ax3 = ax2.twinx()  # instantiate a second axes that shares the same x-axis
+    ax3.plot(hours, data['ratio'], '--',color=c, label='Gas ratio')
+    ax3.tick_params(axis='y', labelcolor=c)
+    ax3.set_ylabel('Gas Ratio',color=c)
+
 
     fig.tight_layout()
     plt.show()
 
 
-def imp_diameter(data):
+def imp_diameter(data, step=None, time=[]):
     """Plots the impedance diameter against time_elapsed"""
 
-    # diameter = []
-    # for z,theta in zip(data['z'],data['theta']):
-    #     diameter.append(impedance_fit(z,theta))
+    data = index_data(data,step,time)
+    hours = data.index.seconds / 60 / 60 + data.index.days * 24
 
-    data['diameter'] = [impedance_fit(z, theta)
-                        for z, theta in zip(data['z'], data['theta'])]
+    data['diameter'] = [impedance_fit(z[5:], theta[5:])
+                        for z, theta in zip(data.z, data.theta)]
 
     fig, ax = plt.subplots()
-    ax.plot(data['diameter'], 'r')
+    ax.plot(hours, data['diameter'], 'r')
     ax.set_xlabel('Time Elapsed [hours]')
     ax.set_ylabel(r'$Diameter [\Omega$]')
     plt.show()
@@ -261,19 +197,33 @@ def imp_diameter(data):
 
 def arrhenius(data):
     """Plots inverse temperature versus conductivity"""
-    return 'This plot is not working yet!'
-    thermo = data.thermo
-    imp = data.imp
+    fig, ax = plt.subplots(1)
 
-    fig = plt.figure('Arrhenius Diagram')
-    ax = fig.add_subplot(111)
-
-    ax.plot(thermo.mean+273.18, imp.conductivity, 'b-', label='temp')
+    ax.plot(1000/data.kelvin, data.resistivity, 'b-')
 
     ax.set_ylabel('Conductivity [S/m]')
     ax.set_xlabel('Temperature [1000/K]')
     ax.tick_params(direction='in')
     ax.invert_xaxis()
+    fig.tight_layout()
+    plt.show()
+
+
+def bode(z, theta, freq=FREQ):
+    fig, ax1 = plt.subplots(1)
+
+    color = 'tab:red'
+    ax1.set_xlabel('Frequency [Hz]')
+    ax1.set_ylabel(r'$Re(Z) [{}]$'.format(K_OHM), color=color)
+    ax1.semilogx(freq, z, 'o',color=color,)
+    ax1.tick_params(axis='y', labelcolor=color)
+
+    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+
+    color = 'tab:blue'
+    ax2.set_ylabel('Phase Angle [degrees]', color=color)  # we already handled the x-label with ax1
+    ax2.semilogx(freq, np.degrees(theta), 'o', color=color)
+    ax2.tick_params(axis='y', labelcolor=color)
     fig.tight_layout()
     plt.show()
 
@@ -294,6 +244,48 @@ def cond_fugacity(data):
     ax.invert_xaxis()
     fig.tight_layout()
     plt.show()
+
+
+def impedance_temp(data,freq=-1):
+
+    # freq_list = np.around(np.linspace(20, 2000000, 50))
+
+    # index = freq_list[freq]
+
+    fig, ax = plt.subplots(1)
+
+    impedance = np.array([np.array(z)[freq] for z in data.z])
+
+    c = ['kx','bo','g^','r.']
+    i=0
+    # t = impedance.T.shape
+    # print(t)
+    for array in impedance.T:
+        print(array.shape)
+        # ax.semilogy(1/data.temp,array, c[i])
+        ax.plot(1/data.temp,array, c[i])
+        i+=1
+
+def impedance_time(data,freq=-1):
+
+    # freq_list = np.around(np.linspace(20, 2000000, 50))
+
+    # index = freq_list[freq]
+
+    fig, ax = plt.subplots(1)
+    hours = data.index.seconds / 60 / 60 + data.index.days * 24
+
+    impedance = np.array([np.array(z)[freq] for z in data.z])
+
+    c = ['kx','bo','g^','r.']
+    i=0
+    for array in impedance.T:
+        ax.semilogy(hours,array, c[i])
+        # ax.plot(hours,array, c[i])
+        i+=1
+
+    ax.set_ylabel('Impedance [real]')
+    ax.set_xlabel('Time [hours]')
 
 
 if __name__ == '__main__':
