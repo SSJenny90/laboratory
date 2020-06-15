@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 
-from laboratory import calibration, config, drivers
+from laboratory import calibration, config, drivers, processing
 from laboratory.utils import loggers, notifications
 from laboratory.utils.exceptions import SetupError
 from laboratory.widgets import CountdownTimer
@@ -55,8 +55,13 @@ class Laboratory():
         self.data = self.process_data(data)
 
     def process_data(self, data):
-        data['time_elapsed'] = data['time'] - data['time'][0]
+        data['time'] = data.index
+        data['time_elapsed'] = data.index - data.index[0]
         data.set_index('time_elapsed', inplace=True)
+        data['temp'] = data[['thermo_1','thermo_2']].mean(axis=1)
+        data['kelvin'] = data.temp+273.18
+
+        data = processing.process_data(data)
         return data
 
     def restart_from_backup(self):

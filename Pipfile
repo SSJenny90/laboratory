@@ -14,13 +14,8 @@ matplotlib = "*"
 numpy = "*"
 pandas = "*"
 scipy = "*"
-xlrd = "*"
-ipython = "*"
 tqdm = "*"
 pyvisa = "*"
-sphinx-rtd-theme = "*"
-autopep8 = "*"
-pylint = "*"
 
 
 [requires]
