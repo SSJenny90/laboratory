@@ -2,6 +2,9 @@ import pandas as pd
 import numpy as np
 from scipy import optimize
 from laboratory import config
+from impedance import preprocessing
+# from impedance.models.circuits
+from impedance import visualization
 
 def circle_fit(x, y, ax):
 
