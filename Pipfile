@@ -16,7 +16,7 @@ pandas = "*"
 scipy = "*"
 tqdm = "*"
 pyvisa = "*"
-
+impedance = "*"
 
 [requires]
 python_version = "3"
