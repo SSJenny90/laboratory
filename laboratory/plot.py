@@ -288,6 +288,55 @@ def impedance_time(data,freq=-1):
     ax.set_xlabel('Time [hours]')
 
 
+class LivePlot():
+
+    def __init__(self):
+        self.fig = plt.figure('Live Plot 1')
+        self.ax = {
+            'fugacity': self.fugacity(),
+            'temperature': self.temperature(),
+            'arrhenius': self.arrhenius(),
+            'voltage': self.voltage(),
+        }
+    def update(self, data):
+        data = processing.process_data(data)
+        hours = data.index.seconds / 60 / 60 + data.index.days * 24
+        self.ax['fugacity'].plot(hours,data.fugacity,'rx')
+        self.ax['temperature'].plot(hours,data.temp,'rx')
+        self.ax['arrhenius'].semilogy(1000/data.kelvin,data.resistivity,'rx')
+        self.ax['voltage'].plot(hours,data.voltage,'rx')
+
+    def temperature(self):
+        temp = self.fig.add_subplot(221)
+        temp.set_ylabel(r'$Temperature [\circ C]$')
+        temp.set_xlabel('Time Elapsed [Hours]')
+        temp.tick_params(direction='in')
+        return temp
+
+    def fugacity(self):
+        fug = self.fig.add_subplot(223)
+        fug.set_ylabel('log fo2p [Pascals]')
+        fug.tick_params(direction='in')
+        fug.set_xlabel('Time Elapsed [hours]')
+        # fug.yscale('log')
+        return fug
+
+    def arrhenius(self):
+        """Plots inverse temperature versus conductivity"""
+        arr = self.fig.add_subplot(222)
+        arr.set_ylabel('Conductivity [S/m]')
+        arr.set_xlabel('Temperature [1000/K]')
+        arr.tick_params(direction='in')
+        arr.invert_xaxis()
+        return arr
+
+    def voltage(self):
+        volt = self.fig.add_subplot(224)
+        volt.set_ylabel('Voltage [mV]')
+        volt.tick_params(direction='in')
+        volt.set_xlabel('Time Elapsed [hours]')
+        return volt
+
 if __name__ == '__main__':
     z = [1.20E+06, 1.38E+05, 5.44E+04, 9.31E+03, 1.16E+03]
     theta = [-1.40E+00, -1.13E+00, -8.10E-01, -1.41E+00, -1.54E+00]

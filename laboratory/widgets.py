@@ -1,7 +1,7 @@
 import sys
 import time
 from datetime import datetime, timedelta
-
+import matplotlib.pyplot as plt
 
 class CountdownTimer():
 
@@ -35,6 +35,7 @@ class CountdownTimer():
         finish = start_time + self.duration
         # while (finish-datetime.now()).total_seconds() > 0:
         while finish > datetime.now():
+            plt.pause(0.001)
             if not self.hide:
                 sys.stdout.write('\r{} {}'.format(
                     message, str(finish-datetime.now()).split('.')[0]))

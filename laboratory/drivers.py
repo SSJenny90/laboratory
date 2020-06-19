@@ -2,7 +2,6 @@
 Contains the drivers for each instrument in the laboratory.
 """
 
-
 import math
 import os
 import pickle
@@ -126,7 +125,7 @@ class LCR(USBSerialInstrument):
         self._set_format()
         self.display('list')
         self.function()
-        if not freq:
+        if freq is not None:
             freq = np.around(np.geomspace(20, 20**6, 50))
         self.write_freq(freq)
         self.list_mode('step')
@@ -152,7 +151,7 @@ class LCR(USBSerialInstrument):
 
     def function(self, mode='impedance'):
         """Sets up the LCR meter for complex impedance measurements"""
-        return self.write('FUNC:IMP ZTD', "Setting measurement type", mode)
+        return self.write('FUNC:IMP ZTR', "Setting measurement type", mode)
 
     def _set_continuous(self, mode='ON'):
         """Allows the LCR meter to auto change state from idle to 'wait for trigger'"""

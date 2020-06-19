@@ -7,8 +7,9 @@ import warnings
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
+from matplotlib import colors, pyplot as plt
 
-from laboratory import calibration, config, drivers, processing
+from laboratory import calibration, config, drivers, processing, plot
 from laboratory.utils import loggers, notifications
 from laboratory.utils.exceptions import SetupError
 from laboratory.widgets import CountdownTimer
@@ -181,7 +182,7 @@ class Experiment(Laboratory):
         """
         self.setup(controlfile)
         self.data = pd.DataFrame()
-
+        self.plot = plot.LivePlot()
         # iterate through control file until finished
         for i, step in self.controlfile.iterrows():
             # self.data = self.get_empty_dataframe()
@@ -223,17 +224,8 @@ class Experiment(Laboratory):
         data = []
         # c=0
         while True:
-            self.measurement = {'step': i}
-            self.progress_bar = tqdm(
-                total = 6+len(self.settings['freq']),
-                bar_format = '{l_bar}{bar}{postfix}',
-                disable = self.debug,
-                )
-
-            self.furnace.reset_timer()
-
             # get a suite of measurements
-            self.begin()
+            self.prepare(i)
             self.get_stage_position()
             self.get_furnace()
             self.get_daq()
@@ -243,6 +235,7 @@ class Experiment(Laboratory):
             data.append(self.measurement)
             self.progress_bar.set_postfix_str('Success')
             self.progress_bar.close() #might not be necessary
+            self.plot.update(data)
 
             CountdownTimer(hide=self.debug,minutes=step.interval).start(
                 start_time = self.measurement['time'], 
@@ -267,11 +260,18 @@ class Experiment(Laboratory):
             if self.errors > 10:
                 return False
 
-    def begin(self):
-
+    def prepare(self,i):
+        now = datetime.now()
+        self.measurement = {'step': i}
+        self.measurement['time'] = now
+        self.progress_bar = tqdm(
+            total = 6+len(self.settings['freq']),
+            bar_format = '{l_bar}{bar}{postfix}',
+            disable = self.debug,
+            )
+        self.furnace.reset_timer()
         self.mean_temp = self.daq.mean_temp
         logger.debug('Collecting data @ {:.1f}\N{DEGREE SIGN}C'.format(self.mean_temp))
-        now = datetime.now()
 
         self.progress_bar.set_description_str(
             '{time} @ {temp:.1f}\N{DEGREE SIGN}C'.format(
@@ -279,7 +279,6 @@ class Experiment(Laboratory):
                 temp=self.mean_temp,
                 )
             )
-        self.measurement['time'] = now
 
     def set_fugacity(self, step):
         """Sets the correct gas ratio for the given buffer. Percentage offset from a given buffer can be specified by 'offset'. Type of gas to be used for calculations is specified by gas_type.
@@ -341,15 +340,45 @@ class Experiment(Laboratory):
         """
         self.daq.toggle_switch('impedance')
         self.update_progress_bar('Collecting impedance data')
-        self.measurement = {**self.measurement,'z':[],'theta':[]}
-        for _ in range(0,len(self.settings['freq'])):
+        freq = self.settings['freq']
+        fig, [ax0, ax1, ax2] = bode_plot()
+        z, theta = [], []
+        for _ in self.settings['freq']:
             self.progress_bar.update(1)
 
             # return a single line for each frequency value
             line = self.lcr.get_complex_impedance()
+            z.append(line['z'])
+            theta.append(line['theta'])
+            # [self.measurement[key].append(val) for key, val in line.items()]
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                ax1.clear()
+                ax2.clear()
 
-            [self.measurement[key].append(val) for key, val in line.items()]
+            color = 'tab:red'
+            ax1.set_xlabel('Frequency [Hz]')
+            ax1.set_ylabel(r'$Re(Z) [k\Omega]$', color=color)
+            ax1.tick_params(axis='y', labelcolor=color)
+            color = 'tab:blue'
+            ax2.set_ylabel('Phase Angle [degrees]', color=color)  # we already handled the x-label with ax1
+            ax2.tick_params(axis='y', labelcolor=color)
 
+            Re, Im = processing.get_Re_Im(z, theta)
+            ax0.set_xlim(0, np.nanmax(Re/1000)*1.1)
+            ax0.scatter(Re/1000, Im/1000, c=freq[:len(z)], norm=colors.LogNorm())
+
+            ax1.semilogx(freq[:len(z)], z, 'o',color='tab:red',)
+            ax2.semilogx(freq[:len(theta)], np.degrees(theta), 'o', color='tab:blue')
+            plt.pause(0.001)
+
+        results = {'z':z,'theta':theta}
+        d, i = processing.fit_impedance(pd.Series(results), method='')
+        ax0.plot(Re[i]/1000,Im[i]/1000,'rx')
+        processing.circle_fit(Re[i:]/1000, Im[i:]/1000, ax0)
+        processing.circle_fit(Re[:i]/1000, Im[:i]/1000, ax0)
+
+        self.measurement.update(results)
         self.daq.toggle_switch('thermo')
 
     def update_progress_bar(self,message=None):
@@ -559,3 +588,33 @@ class Experiment(Laboratory):
                         'Heat rate [C/min]', 'Interval', 'Buffer', 'Offset', 'Gas', 'Est. mins']
         print(controlfile.to_string(columns=column_names,
                                     header=column_alias, index=False) + '\n')
+
+def bode_plot():
+    plt.figure('Live Plot 2').clear()
+
+    fig, [ax0, ax1] = plt.subplots(2,1,num='Live Plot 2')
+    
+    ax0.set_ylim(bottom=0)
+    # if fit:
+    #     processing.circle_fit(Re, Im, ax)
+        # ax.axis('scaled')
+    # else:
+    ax0.axis('equal')
+
+    ax0.set_ylabel(r'$-Im(Z) [k\Omega]$')
+    ax0.set_xlabel(r'$Re(Z) [k\Omega]$')
+    ax0.ticklabel_format(style='sci', scilimits=(-3, 4), axis='both')
+    # ax.set_title('Cole-Cole')
+
+    color = 'tab:red'
+    ax1.set_xlabel('Frequency [Hz]')
+    ax1.set_ylabel(r'$Re(Z) [k\Omega]$', color=color)
+    ax1.tick_params(axis='y', labelcolor=color)
+    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+
+    color = 'tab:blue'
+    ax2.set_ylabel('Phase Angle [degrees]', color=color)  # we already handled the x-label with ax1
+    ax2.tick_params(axis='y', labelcolor=color)
+    fig.tight_layout()
+
+    return fig, [ax0,ax1,ax2]

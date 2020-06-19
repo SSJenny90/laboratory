@@ -159,12 +159,12 @@ def fit_impedance(data, offset=0, method='lsq'):
         Re = np.flipud(np.multiply(Z, np.cos(theta)))
         Im = np.flipud(np.multiply(Z, np.sin(theta)))
 
-        # i = np.argmax(np.sign(np.diff(Im[20:])) >=0 )
+        i = np.argmax(np.sign(np.diff(Im[20:])) <=0 )
 
-        i = 20
-        for i in range(i, len(Im)-1):
-            if Im[i+1] - Im[i] > Im[i] - Im[i-1]:
-                break
+        # i = 20
+        # for i in range(i, len(Im)-1):
+        #     if Im[i+1] - Im[i] > Im[i] - Im[i-1]:
+        #         break
 
         # if not i:
         #     i = len(Im)
@@ -175,7 +175,7 @@ def fit_impedance(data, offset=0, method='lsq'):
         # print(r)
         diameter = 2*r
 
-        return diameter
+        return diameter, i+20
 
 def calculate_resistivity(data):
     """Calculates the resistivity of the sample from the resistance and sample dimensions supplied in config.py"""
@@ -209,13 +209,27 @@ def actual_fugacity(data):
     return parabola(ratio, *popt2)
 
 def process_data(data):
+    if isinstance(data, list):
+        data = pd.DataFrame(data)
+    if data.shape[0] > 1:
+        data['time_elapsed'] = data['time'] - data['time'][0]
+    else:
+        data['time_elapsed'] = pd.Timedelta(0)
+        
+    data.set_index('time_elapsed', inplace=True)
+    data['temp'] = data[['thermo_1','thermo_2']].mean(axis=1)
+    data['kelvin'] = data.temp+273.18
+
     thickness = config.SAMPLE_THICKNESS * 10 ** -3
-    radius = (config.SAMPLE_DIAMETER/2) * 10 ** -3
-    area = 97.686 * 10 ** -6
+    if not config.SAMPLE_AREA:
+        radius = (config.SAMPLE_DIAMETER/2) * 10 ** -3
+        area = np.pi * radius**2
+    else:
+        area = config.SAMPLE_AREA * 10 ** -6
 
     data['actual_fugacity'] = data.apply(lambda x: actual_fugacity(x), axis=1)
     data['resistance'] = data.apply(lambda x: fit_impedance(x,offset=5), axis=1)
     data['resistivity'] = (area / thickness) * data.resistance
-
+    data['conductivity'] = 1/data.resistivity
     return data
     # data['resistivity'] = data.apply(lambda x: calculate_resistivity(x), axis=1)
