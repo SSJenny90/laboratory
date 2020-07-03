@@ -212,11 +212,14 @@ def process_data(data):
     if isinstance(data, list):
         data = pd.DataFrame(data)
     if data.shape[0] > 1:
-        data['time_elapsed'] = data['time'] - data['time'][0]
+        # print(data.time.head())
+        data['time_elapsed'] = data.index - data.index[0]
     else:
         data['time_elapsed'] = pd.Timedelta(0)
         
-    data.set_index('time_elapsed', inplace=True)
+    # data.set_index('time_elapsed', inplace=True)
+    # data.set_index('time', inplace=True)
+    
     data['temp'] = data[['thermo_1','thermo_2']].mean(axis=1)
     data['kelvin'] = data.temp+273.18
 
@@ -227,9 +230,10 @@ def process_data(data):
     else:
         area = config.SAMPLE_AREA * 10 ** -6
 
+    data.geometric_factor = area/thickness
     data['actual_fugacity'] = data.apply(lambda x: actual_fugacity(x), axis=1)
     data['resistance'] = data.apply(lambda x: fit_impedance(x,offset=5), axis=1)
-    data['resistivity'] = (area / thickness) * data.resistance
+    data['resistivity'] = data.geometric_factor * data.resistance
     data['conductivity'] = 1/data.resistivity
     return data
     # data['resistivity'] = data.apply(lambda x: calculate_resistivity(x), axis=1)
