@@ -1,26 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Contains plotting tools for use with laboratory data.
-
-======================= ===========================================================
-Class Objects           Description
-======================= ===========================================================
-LabPlots                houses an assortment of plotting tools
-======================= ===========================================================
-
-======================= ===========================================================
-Methods                 Description
-======================= ===========================================================
-impedance_fit           estimates the diameter of the impedance arc based on
-dt_to_hours             converts recorded datetimes to time elapsed
-leastsq_circle          fits a least squares circle to impedance data
-index_temp              index the nearest temperature value
-get_Re_Im               returns the real and imaginary components of complex impedance
-calculate_resistivity   calculates resistivity from impedance spectra and sample
-                        dimensions
-======================= ===========================================================
-"""
 import math
 import time
 
@@ -31,9 +10,12 @@ import matplotlib.pyplot as plt
 from laboratory import config, processing
 from matplotlib.offsetbox import AnchoredText
 
+plt.style.use('seaborn-darkgrid')
+
+plt.ion()
 FREQ = np.around(np.geomspace(20, 2000000, 50))
 
-K_OHM = 'k\Omega'
+K_OHM = r'k\Omega'
 
 def index_temp(T, Tx):
     # returns the index of T nearest to the specified temp Tx. For use in colecole plots
@@ -266,6 +248,7 @@ def impedance_temp(data,freq=-1):
         ax.plot(1/data.temp,array, c[i])
         i+=1
 
+
 def impedance_time(data,freq=-1):
 
     # freq_list = np.around(np.linspace(20, 2000000, 50))
@@ -288,54 +271,193 @@ def impedance_time(data,freq=-1):
     ax.set_xlabel('Time [hours]')
 
 
-class LivePlot():
+class LivePlot1():
 
     def __init__(self):
-        self.fig = plt.figure('Live Plot 1')
+        self.fig, ax = plt.subplots(4,1, sharex=True, num='Live Plot 1')
         self.ax = {
-            'fugacity': self.fugacity(),
-            'temperature': self.temperature(),
-            'arrhenius': self.arrhenius(),
-            'voltage': self.voltage(),
-        }
-    def update(self, data):
-        data = processing.process_data(data)
-        hours = data.index.seconds / 60 / 60 + data.index.days * 24
-        self.ax['fugacity'].plot(hours,data.fugacity,'rx')
-        self.ax['temperature'].plot(hours,data.temp,'rx')
-        self.ax['arrhenius'].semilogy(1000/data.kelvin,data.resistivity,'rx')
-        self.ax['voltage'].plot(hours,data.voltage,'rx')
+            'fugacity': self.fugacity(ax[0]),
+            'temperature': self.temperature(ax[1]),
+            'gas': self.gas(ax[2]),
+            'voltage': self.voltage(ax[3]),
+            }
 
-    def temperature(self):
-        temp = self.fig.add_subplot(221)
-        temp.set_ylabel(r'$Temperature [\circ C]$')
-        temp.set_xlabel('Time Elapsed [Hours]')
-        temp.tick_params(direction='in')
-        return temp
+        self.draw()
+
+    def update(self, data, area, thickness):
+        # recalls the figure in case it was closed
+        # self.fig = plt.figure('Live Plot 1')
+        data = processing.process_data(data, area, thickness)
+        hours = data.index.seconds / 60 / 60 + data.index.days * 24
+
+        # update temperatures
+        self.temp.set_data(hours, data.temp)
+        self.target_temp.set_data(hours, data.target)
+
+        # update fugacity plot
+        self.desired_fug.set_data(hours, data.fugacity)
+        self.actual_fug.set_data(hours, data.actual_fugacity)
+
+        # update voltage
+        self.volt.set_data(hours, data.voltage)
+
+        # update gas
+        self.co2.set_data(hours, data.co2)
+        self.h2.set_data(hours, data.h2)
+        self.co.set_data(hours, data.co)
+
+        #recalculate all axes limits
+        self.relim_all()
+        self.draw()
+
+    def temperature(self, ax):
+        self.target_temp, = ax.step([],[], 'y', linestyle='--', label='Target temperature')
+        self.temp, = ax.plot([],[],'.', label='Temperature')
+        ax.set_ylabel(r'$Temperature [\circ C]$')
+        ax.tick_params(direction='in',labelbottom=False)
+        ax.legend()
+        return ax
+
+    def fugacity(self, ax):
+        self.desired_fug, = ax.plot([],[],'--', label='Desired Fugacity')
+        self.actual_fug, = ax.plot([],[],'.', label='Actual Fugacity')
+        ax.set_ylabel('log fo2p [Pascals]')
+        ax.tick_params(direction='in',labelbottom=False)
+        ax.legend()
+        return ax
+
+    def voltage(self, ax):
+        self.volt, = ax.plot([],[],'.', label='Voltage')
+        ax.set_ylabel('Voltage [mV]')
+        ax.tick_params(direction='in')
+        ax.set_xlim(left=0)
+        ax.set_xlabel('Time Elapsed [hours]')
+        return ax
+
+    def gas(self, ax):
+        self.co2, = ax.plot([], [], label='CO2')
+        self.h2, = ax.plot([], [], label='H2')
+        self.co, = ax.plot([], [], label='CO')
+        ax.tick_params(direction='in', labelbottom=False)
+        ax.set_ylabel('Mass Flow [SCCM]')
+        ax.set_ylim(bottom=0)
+        ax.legend()
+        return ax
+
+    def draw(self):
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events() 
+
+    def relim_all(self):
+        for ax in self.ax.values():
+            ax.relim()
+            ax.autoscale_view()
+
+class LivePlot2():
+
+    def __init__(self, freq):
+        self.freq = freq
+
+        self.fig = plt.figure('Live Plot 2')
+        self.ax = {
+            'cole': self.cole(),
+            'bode': self.bode(),
+            'arrhenius': self.arrhenius(),
+            'fugacity': self.fugacity(),
+            }
+
+        self.fig.tight_layout()
+        self.draw()
+
+    def update_right(self, z, theta):
+
+        Re, Im = processing.get_Re_Im(z, theta)
+
+        # update cole plot
+        self.cole.set_data(Re/1000, Im/1000)
+
+        # update bode plot
+        self.bode_z.set_data(self.freq[:len(z)], z)
+        self.bode_theta.set_data(self.freq[:len(z)], np.degrees(np.abs(theta)))
+
+        #recalculate all axes limits
+        for ax in [self.ax['cole'], *self.ax['bode']]:
+            ax.relim()
+            ax.autoscale_view()
+
+        self.draw()
+
+    def update_left(self, data, area, thickness):
+        # recalls the figure in case it was closed
+        # self.fig = plt.figure('Live Plot 1')
+        data = processing.process_data(data, area, thickness)
+
+        # update plots
+        self.arrhenius.set_data(1000/data.kelvin, data.conductivity)
+        self.fugacity.set_data(1000/data.kelvin, data.actual_fugacity)
+
+        for ax in [self.ax['arrhenius'], self.ax['fugacity']]:
+            ax.relim()
+            ax.autoscale_view()
+
+        self.draw()
+
+    def draw_target_fugacity(self,target_buffer, temp_range):
+        temp_list = np.linspace(*temp_range,100)
+        fug = [processing.fo2_buffer(temp, target_buffer) for temp in temp_list] 
+        self.ax['fugacity'].plot(1000/temp_list, fug, '--')
+
+    def cole(self):
+        ax = self.fig.add_subplot(222)
+        self.cole, = ax.plot([], [],'bo')
+
+        ax.axis('equal')
+        ax.set_ylabel(r'$-Im(Z) [k\Omega]$')
+        ax.set_xlabel(r'$Re(Z) [k\Omega]$')
+        ax.ticklabel_format(style='sci', scilimits=(-3, 4), axis='both')
+        return ax
+
+    def bode(self):
+        ax1 = self.fig.add_subplot(224)
+        color = 'tab:red'
+
+        self.bode_z, = ax1.semilogx([], [], '.',color=color)
+        ax1.set_ylabel(r'$Re(Z) [k\Omega]$', color=color)
+        ax1.tick_params(axis='y', labelcolor=color)
+        ax1.set_xlabel('Frequency [Hz]')
+        
+
+        ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+        color = 'tab:blue'
+        self.bode_theta, = ax2.semilogx([], [], '.',color=color)
+        ax2.set_ylabel('Phase Angle [degrees]', color=color)  # we already handled the x-label with ax1
+        ax2.tick_params(axis='y', labelcolor=color)
+        return [ax1, ax2]
 
     def fugacity(self):
-        fug = self.fig.add_subplot(223)
-        fug.set_ylabel('log fo2p [Pascals]')
-        fug.tick_params(direction='in')
-        fug.set_xlabel('Time Elapsed [hours]')
-        # fug.yscale('log')
-        return fug
+        ax = self.fig.add_subplot(223)
+
+        self.fugacity, = ax.plot([],[],'.')
+
+        ax.set_xlabel('Temperature [1000/K]')
+        ax.set_ylabel('Fugacity [log Pascals]')
+        ax.tick_params(direction='in',labelbottom=False)
+        return ax
 
     def arrhenius(self):
         """Plots inverse temperature versus conductivity"""
-        arr = self.fig.add_subplot(222)
-        arr.set_ylabel('Conductivity [S/m]')
-        arr.set_xlabel('Temperature [1000/K]')
-        arr.tick_params(direction='in')
-        arr.invert_xaxis()
-        return arr
+        ax = self.fig.add_subplot(221)
+        self.arrhenius,  = ax.semilogy([],[],'.')
 
-    def voltage(self):
-        volt = self.fig.add_subplot(224)
-        volt.set_ylabel('Voltage [mV]')
-        volt.tick_params(direction='in')
-        volt.set_xlabel('Time Elapsed [hours]')
-        return volt
+        ax.set_ylabel('Conductivity [S/m]')
+        ax.set_xlabel('Temperature [1000/K]')
+        ax.tick_params(direction='in')
+        ax.invert_xaxis()
+        return ax
+
+    def draw(self):
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events() 
 
 if __name__ == '__main__':
     z = [1.20E+06, 1.38E+05, 5.44E+04, 9.31E+03, 1.16E+03]
