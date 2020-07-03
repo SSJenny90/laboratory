@@ -101,6 +101,49 @@ def fugacity_co(fo2p, temp):
 
     return CO2/CO
 
+def fugacity_h2(fo2p, temp):
+    """Calculates the ratio CO2/H2 needed to maintain a constant oxygen fugacity at a given temperature.
+
+    :param fo2p: desired oxygen fugacity (log Pa)
+    :type fo2p: float, int
+
+    :param temp: temperature (u'\N{DEGREE SIGN}C)
+    :type temp: float, int
+
+    :returns: CO2/H2 ratio
+    :rtype: float
+    """
+    a10 = 62.110326
+    a11 = -2.144446e-2
+    a12 = 4.720325e-7
+    a13 = -4.5574288e-12
+    a14 = -7.3430182e-15
+
+    a30 = 55.025254
+    a31 = -1.1212207e-2
+    a32 = -2.0800406e-6
+    a33 = 7.6484887e-10
+    a34 = -1.1232833e-13
+
+    t0 = 273.18      # conversion C to K
+    rgc = .00198726  # gas constant
+
+    tk = temp + t0
+    fo2 = 1.01325*(10**(fo2p-5))  # convert Pa to atm
+
+    g1 = (((a14*temp+a13)*temp+a12)*temp+a11)*temp+a10  # Gibbs free energy
+    g3 = (((a34*temp+a33)*temp+a32)*temp+a31)*temp+a30  # Gibbs free energy
+    k1 = math.exp(-g1/rgc/tk)  # equilibrium constant
+    k3 = math.exp(-g3/rgc/tk)  # equilibrium constant
+
+    a = k1/(k1 + fo2**0.5)
+    b = fo2**0.5/(k3 + fo2**0.5)
+
+    H2 = a*(1-fo2) - 2*fo2
+    CO2 = b*(1-fo2) + 2*fo2
+
+    return CO2/H2
+
 def circle_fit(x, y, ax):
 
     xc, yc, R = leastsq_circle(x, y)[:3]
@@ -208,7 +251,7 @@ def actual_fugacity(data):
     popt2 = optimize.curve_fit(parabola, r, fugacity_list)[0]
     return parabola(ratio, *popt2)
 
-def process_data(data):
+def process_data(data, sample_area, sample_thickness):
     if isinstance(data, list):
         data = pd.DataFrame(data)
     if data.shape[0] > 1:
@@ -219,17 +262,13 @@ def process_data(data):
     data.set_index('time_elapsed', inplace=True)
     data['temp'] = data[['thermo_1','thermo_2']].mean(axis=1)
     data['kelvin'] = data.temp+273.18
-
-    thickness = config.SAMPLE_THICKNESS * 10 ** -3
-    if not config.SAMPLE_AREA:
-        radius = (config.SAMPLE_DIAMETER/2) * 10 ** -3
-        area = np.pi * radius**2
-    else:
-        area = config.SAMPLE_AREA * 10 ** -6
-
     data['actual_fugacity'] = data.apply(lambda x: actual_fugacity(x), axis=1)
     data['resistance'] = data.apply(lambda x: fit_impedance(x,offset=5), axis=1)
-    data['resistivity'] = (area / thickness) * data.resistance
-    data['conductivity'] = 1/data.resistivity
+
+    if sample_area and sample_thickness:
+        area = sample_area * 10 ** -6
+        thickness = sample_thickness * 10 ** -3
+        data['resistivity'] = (area / thickness) * data.resistance
+        data['conductivity'] = 1/data.resistivity
     return data
     # data['resistivity'] = data.apply(lambda x: calculate_resistivity(x), axis=1)
