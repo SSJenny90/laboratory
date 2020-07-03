@@ -57,6 +57,7 @@ class Laboratory():
 
     def process_data(self, data):
         return processing.process_data(data, self.sample_area, self.sample_thickness)
+        # return processing.process_data(data)
 
     def restart_from_backup(self):
         """

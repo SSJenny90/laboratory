@@ -255,11 +255,14 @@ def process_data(data, sample_area, sample_thickness):
     if isinstance(data, list):
         data = pd.DataFrame(data)
     if data.shape[0] > 1:
-        data['time_elapsed'] = data['time'] - data['time'][0]
+        # print(data.time.head())
+        data['time_elapsed'] = data.index - data.index[0]
     else:
         data['time_elapsed'] = pd.Timedelta(0)
         
-    data.set_index('time_elapsed', inplace=True)
+    # data.set_index('time_elapsed', inplace=True)
+    # data.set_index('time', inplace=True)
+    
     data['temp'] = data[['thermo_1','thermo_2']].mean(axis=1)
     data['kelvin'] = data.temp+273.18
     data['actual_fugacity'] = data.apply(lambda x: actual_fugacity(x), axis=1)
@@ -270,5 +273,18 @@ def process_data(data, sample_area, sample_thickness):
         thickness = sample_thickness * 10 ** -3
         data['resistivity'] = (area / thickness) * data.resistance
         data['conductivity'] = 1/data.resistivity
+
+    # thickness = config.SAMPLE_THICKNESS * 10 ** -3
+    # if not config.SAMPLE_AREA:
+    #     radius = (config.SAMPLE_DIAMETER/2) * 10 ** -3
+    #     area = np.pi * radius**2
+    # else:
+    #     area = config.SAMPLE_AREA * 10 ** -6
+
+    # data.geometric_factor = area/thickness
+    # data['actual_fugacity'] = data.apply(lambda x: actual_fugacity(x), axis=1)
+    # data['resistance'] = data.apply(lambda x: fit_impedance(x,offset=5), axis=1)
+    # data['resistivity'] = data.geometric_factor * data.resistance
+    # data['conductivity'] = 1/data.resistivity
     return data
     # data['resistivity'] = data.apply(lambda x: calculate_resistivity(x), axis=1)
