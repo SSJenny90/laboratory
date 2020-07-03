@@ -10,7 +10,7 @@ from pandas.api.types import is_numeric_dtype
 from matplotlib import colors, pyplot as plt
 
 from laboratory import calibration, config, drivers, processing, plot
-from laboratory.utils import loggers, notifications
+from laboratory.utils import loggers
 from laboratory.utils.exceptions import SetupError
 from laboratory.widgets import CountdownTimer
 
@@ -39,10 +39,10 @@ class Laboratory():
         if not type(val) is bool:
             raise ValueError('Debug must be either True of false')
         if val:
-            logger.handlers[1].setLevel('DEBUG')
+            logger.handlers[0].setLevel('DEBUG')
             self._debug = val
         else:
-            logger.handlers[1].setLevel('INFO')
+            logger.handlers[0].setLevel('INFO')
             self._debug = False
 
     def load_data(self, project_folder):
@@ -56,14 +56,7 @@ class Laboratory():
         self.data = self.process_data(data)
 
     def process_data(self, data):
-        data['time'] = data.index
-        data['time_elapsed'] = data.index - data.index[0]
-        data.set_index('time_elapsed', inplace=True)
-        data['temp'] = data[['thermo_1','thermo_2']].mean(axis=1)
-        data['kelvin'] = data.temp+273.18
-
-        data = processing.process_data(data)
-        return data
+        return processing.process_data(data, self.sample_area, self.sample_thickness)
 
     def restart_from_backup(self):
         """
@@ -73,29 +66,22 @@ class Laboratory():
         return
 
     def header(self, step, i):
-        finish_time = 'Estimated finish: ' + \
-            datetime.strftime(
-                datetime.now() + step.est_total_mins, '%H:%M %A, %b %d')
+        print('Estimated finish: {}'.format(datetime.strftime(
+                datetime.now() + step.hold_length, '%H:%M %A, %b %d')))
 
         logger.info('Step {}:\n'.format(i+1))
+
+        # print('======================')
+
+        # print('Step {}\n',step[
+        #     ['target_temp','hold_length','heating_rate','buffer']
+        #     ])
+
+
+        # print('======================')
+
         self.display_controlfile(self.controlfile.iloc[[i]])
         # logger.info(finish_time)
-
-    def instrument_errors(self, email_alert=False):
-        """Checks the status of all devices. If desired, this function can send an email when something has become disconnected
-
-        :returns: True if all devices are connected and False if any are disconnected
-        :rtype: Boolean
-        """
-        device_list = ['furnace', 'stage', 'daq', 'lcr', 'gas']
-        errors = {device: getattr(
-            self, device).status for device in device_list if not getattr(self, device).status}
-
-        if errors:
-            if email_alert:
-                notifications.send_email(
-                    notifications.Messages.device_error.format(','.join(errors)))
-            return errors
 
     def reconnect(self):
         """Attempts to reconnect to any instruments that have been disconnected"""
@@ -146,7 +132,7 @@ class Experiment(Laboratory):
     get_thermo        retrieves and saves thermopower data from the DAQ
     load_data         will parse a datafile and store in 'data' structure for post-
                       processing and visualisation
-    load_frequencies  loads a set of frequencies into Data object
+    set_frequencies  loads a set of frequencies into Data object
     load_instruments  connects to all available instruments
     run               begins a new set of laboratory measurements
     ================= ===========================================================
@@ -158,54 +144,44 @@ class Experiment(Laboratory):
     >>> lab.run('some_controlfile')
     """
 
-    def __init__(self, filename=None, debug=False):
+    def __init__(self, debug=False):
         """Create a new Experiment instance.
 
         Args:
-            filename (str, optional): [description]. Defaults to None.
             debug (bool, optional): Displays all logging messages on the console. Defaults to False.
         """
-        super().__init__(filename, debug)
+        super().__init__(debug=debug)
         self.settings = {}
-        self.project_directory = self.create_project_directory()
+        self.project_name = ''
+        self.control_file = ''
+        self.sample_area = None
+        self.sample_thickness = None
 
-    def get_empty_dataframe(self):
-        column_names = ['time', 'indicated', 'target', 'reference', 'thermo_1', 'thermo_2',
-                        'voltage', 'x_position', 'h2', 'co2', 'co', 'z', 'theta', 'fugacity', 'ratio']
-        return pd.DataFrame(columns=column_names)
-
-    def run(self, controlfile=None):
+    def run(self, step=None):
         """Being a new experiment defined by the instructions in controlfile.
 
         Args:
             controlfile (str, optional): Path to controlfile containing step by step instructions for the experiment.
         """
-        self.setup(controlfile)
+        if not self.project_name:
+            raise SetupError('You must specify a project name before beginning an experiment.')
+        if not self.control_file:
+            raise SetupError('No control file has been selected.')
+
+        self.project_directory = self._create_directory()
+        self.setup()
         self.data = pd.DataFrame()
-        self.plot = plot.LivePlot()
+        self.plot = plot.LivePlot1()
+        self.plot2 = plot.LivePlot2(self.settings['freq'])
+
+        print(self.settings['freq'])
+
         # iterate through control file until finished
         for i, step in self.controlfile.iterrows():
-            # self.data = self.get_empty_dataframe()
-            self.header(step, i)
-
-            # set the required heating rate if a change is needed
-            self.furnace.heating_rate(step.heat_rate)
-
-            # set the required temperature if a change is needed
-            self.furnace.setpoint_1(step.furnace_equivalent)
-            print('')
-
-            # save the start time of this step
-            step['time'] = datetime.now()
             # enter the main measurement loop
             data = self.measurement_cycle(step, i)
             if not data.empty:
                 logger.info('Step {} complete!'.format(i))
-                if i < self.controlfile.shape[0]-1:
-                    est_completion = datetime.strftime(datetime.now() + step.est_total_mins,'%H:%M %A, %b %d')
-                    notifications.send_email('success',data=data,args=(i+1,self.controlfile.loc[i+1,'target_temp'],i+2,i+2,est_completion))
-                else:
-                    notifications.send_email("You're experiment is finished!",data=data)
             else:
                 logger.critical('Something wen\'t wrong!')
                 break
@@ -218,11 +194,16 @@ class Experiment(Laboratory):
 
         :param step: a single row from the control file
         """
+        self.plot2.draw_target_fugacity(step.buffer, [self.controlfile.target_temp.min(), self.controlfile.target_temp.max()])
+        self.header(step, i)
 
+        # adjust furnace settings
+        self.furnace.heating_rate(step.heat_rate)
+        self.furnace.setpoint_1(step.furnace_equivalent)
         self.furnace.timer_duration(minutes=3.5*step.interval)
-        self.errors = 0
+
         data = []
-        # c=0
+        start_time = datetime.now()
         while True:
             # get a suite of measurements
             self.prepare(i)
@@ -233,32 +214,16 @@ class Experiment(Laboratory):
             self.get_gas()
             self.get_impedance()
             data.append(self.measurement)
-            self.progress_bar.set_postfix_str('Success')
-            self.progress_bar.close() #might not be necessary
-            self.plot.update(data)
+            self.update_progress_bar('Complete')
+            self.update_plots(data)
 
             CountdownTimer(hide=self.debug,minutes=step.interval).start(
                 start_time = self.measurement['time'], 
                 message = 'Next measurement in...')
                 
-            logger.debug('Countdown finished. Checking for instrument errors.')
-
-            # check to make sure everything is connected
-            if self.instrument_errors():
-                logger.debug('Found instruments errors. Quitting program')
-                return
-
-            # c+=1
-            # # test break
-            # if c >= 1:
-            #     return self.save_and_export(data, step, i)
-
             # check to see if it's time to begin the next loop
-            if self.break_cycle(step, self.measurement['indicated']):
-                return self.save_and_export(data, step, i)
-
-            if self.errors > 10:
-                return False
+            if self.break_cycle(step, self.measurement['indicated'], start_time):
+                return self.save_and_export(data, start_time, step, i)
 
     def prepare(self,i):
         now = datetime.now()
@@ -333,7 +298,7 @@ class Experiment(Laboratory):
         :rtype: list
         """
         self.update_progress_bar('Getting thermopower data')
-        self.measurement = {**self.measurement, **self.daq.get_thermopower()}
+        self.measurement = self.measurement.update(**self.daq.get_thermopower())
 
     def get_impedance(self):
         """Sets up the lcr meter and retrieves complex impedance data at all frequencies specified by Data.freq. Data is saved in Data.imp.z and Data.imp.theta as a list of length Data.freq. Values are also saved to the data file.
@@ -341,7 +306,7 @@ class Experiment(Laboratory):
         self.daq.toggle_switch('impedance')
         self.update_progress_bar('Collecting impedance data')
         freq = self.settings['freq']
-        fig, [ax0, ax1, ax2] = bode_plot()
+
         z, theta = [], []
         for _ in self.settings['freq']:
             self.progress_bar.update(1)
@@ -350,63 +315,53 @@ class Experiment(Laboratory):
             line = self.lcr.get_complex_impedance()
             z.append(line['z'])
             theta.append(line['theta'])
-            # [self.measurement[key].append(val) for key, val in line.items()]
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                ax1.clear()
-                ax2.clear()
 
-            color = 'tab:red'
-            ax1.set_xlabel('Frequency [Hz]')
-            ax1.set_ylabel(r'$Re(Z) [k\Omega]$', color=color)
-            ax1.tick_params(axis='y', labelcolor=color)
-            color = 'tab:blue'
-            ax2.set_ylabel('Phase Angle [degrees]', color=color)  # we already handled the x-label with ax1
-            ax2.tick_params(axis='y', labelcolor=color)
-
-            Re, Im = processing.get_Re_Im(z, theta)
-            ax0.set_xlim(0, np.nanmax(Re/1000)*1.1)
-            ax0.scatter(Re/1000, Im/1000, c=freq[:len(z)], norm=colors.LogNorm())
-
-            ax1.semilogx(freq[:len(z)], z, 'o',color='tab:red',)
-            ax2.semilogx(freq[:len(theta)], np.degrees(theta), 'o', color='tab:blue')
-            plt.pause(0.001)
+            # Don't want a dodgy plot call to ruin the experiment
+            try:
+                self.plot2.update_right(z, theta)
+            except Exception:
+                pass
 
         results = {'z':z,'theta':theta}
-        d, i = processing.fit_impedance(pd.Series(results), method='')
-        ax0.plot(Re[i]/1000,Im[i]/1000,'rx')
-        processing.circle_fit(Re[i:]/1000, Im[i:]/1000, ax0)
-        processing.circle_fit(Re[:i]/1000, Im[:i]/1000, ax0)
-
         self.measurement.update(results)
         self.daq.toggle_switch('thermo')
 
     def update_progress_bar(self,message=None):
-        self.progress_bar.update(1)
         self.progress_bar.set_postfix_str(message)
         logger.debug(message)
+        if message == 'Complete':
+            self.progress_bar.close()
+        else:
+            self.progress_bar.update(1)
 
-    def setup(self,controlfile):
+    def update_plots(self, data):
+        # dont want plot calls to halt the experiment
+        try:
+            self.plot.update(data, self.sample_area, self.sample_thickness)
+            self.plot2.update_left(data, self.sample_area, self.sample_thickness)
+        except Exception:
+            pass
+
+    def setup(self):
         """Conducts necessary checks before running an experiment abs
 
         :param controlfile: name of control file for the experiment
         :type controlfile: string
         """
-        if not controlfile:
-            controlfile = config.PROJECT_NAME + '.xlsx'
-        #     # raise SetupError('You must specify a valid control file!')
-        # else:
-        controlfile = pd.read_excel(controlfile, header=1)
+        controlfile = pd.read_excel(self.control_file, header=1)
 
         if not self.check_controlfile(controlfile):
             raise SetupError('Incorrect control file format!')
+        
+        if self.settings.get('freq') is None:
+            print(1)
+            self.set_frequencies()
 
-        self.load_frequencies()
-        if self.settings['freq'] is None:
-            raise SetupError(
-                'No frequencies have been selected for measurement')
+        # set up logging file handler
+        loggers.file_handler(logger, self.project_name)
 
         # configure instruments
+        print(self.settings['freq'])
         self.lcr.configure(self.settings['freq'])
         # self.daq.configure()
 
@@ -429,10 +384,9 @@ class Experiment(Laboratory):
         controlfile['est_total_mins'] = total_mins.dt.round('s')
 
         self.display_controlfile(controlfile)
-
         self.controlfile = controlfile
 
-    def load_frequencies(self, min_f=config.MINIMUM_FREQ, max_f=config.MAXIMUM_FREQ, n=50, log=config.FREQ_LOG_SCALE):
+    def set_frequencies(self, min_f=config.LCR['min_freq'], max_f=config.LCR['max_freq'], num_freq=50, log_scale=True):
         """Loads an np.array
 
         Args:
@@ -443,10 +397,10 @@ class Experiment(Laboratory):
 
         ..example 
             >>> lab = Laboratory.Setup()
-            >>> lab.load_frequencies(min=1000, max=10000, n=10)
+            >>> lab.set_frequencies(min=1000, max=10000, n=10)
             >>> print(lab.data.freq)
             [1000 2000 3000 4000 5000 6000 7000 8000 9000 10000]
-            >>> lab.load_frequencies(min=1000, max=10000, n=10, log=True)
+            >>> lab.set_frequencies(min=1000, max=10000, n=10, log=True)
             >>> print(lab.data.freq)
             [1000 1291.55 1668.1 2154.43 2782.56 3593.81 4641.59 5994.84 7742.64 10000]
 
@@ -454,14 +408,12 @@ class Experiment(Laboratory):
 
         logger.debug('Creating frequency data...')
 
-        if hasattr(config,'FREQUENCY_LIST'):
-            self.settings['freq'] = np.array(getattr(config,'FREQUENCY_LIST'))
-        elif log:
-            self.settings['freq'] = np.around(np.geomspace(min_f, max_f, n))
+        if log_scale:
+            self.settings['freq'] = np.around(np.geomspace(min_f, max_f, num_freq))
         else:
-            self.settings['freq'] = np.around(np.linspace(min_f, max_f, n))
+            self.settings['freq'] =  np.around(np.linspace(min_f, max_f, num_freq))
 
-    def save_and_export(self, data, step, i):
+    def save_and_export(self, data, start_time, step, i):
 
         # convert step data to dataframe
         data = pd.DataFrame(data)
@@ -478,15 +430,13 @@ class Experiment(Laboratory):
 
             # data.to_hdf(fname,key='step_{}'.format(i))
 
-
-
         # save data from the present step into it's own csv file
         file_name = os.path.join(
             self.project_directory, 'Step {}.csv'.format(i))
         with open(file_name, 'w', newline="") as f:
-            f.write('project_name: {}\n'.format(config.PROJECT_NAME))
+            f.write('project_name: {}\n'.format(self.project_name))
             f.write('start: {}\n'.format(datetime.strftime(
-                step['time'], '%d %B %Y @ %H:%M:%S')))
+                start_time, '%d %B %Y @ %H:%M:%S')))
             for i in ['target_temp', 'interval', 'buffer', 'offset', 'fo2_gas']:
                 f.write('{}: {}\n'.format(i, step.get(i)))
 
@@ -500,14 +450,14 @@ class Experiment(Laboratory):
 
         return data
 
-    def create_project_directory(self):
-        project_folder = os.path.join(config.DATA_DIR, config.PROJECT_NAME)
+    def _create_directory(self):
+        project_folder = os.path.join(config.DATA_DIR, self.project_name)
         if not os.path.exists(project_folder):
             os.mkdir(project_folder)
 
         return project_folder
 
-    def break_cycle(self, step, indicated):
+    def break_cycle(self, step, indicated, start_time):
         """Checks whether the main measurements loop should be broken in order to proceed to the next  If temperature is increasing the loop will break once T-indicated exceeds the target temperature. If temperature is decreasing, the loop will break when T-indicated is within 5 degrees of the target. If temperature is holding, the loop will break when the hold time specified by hold_length is exceeded.
 
         :param step: the current measurement step
@@ -516,13 +466,14 @@ class Experiment(Laboratory):
         :param indicated: current indicated temperature on furnace
         :type indicated: float
         """
-        tolerance = 5
+        # avoid boolean expression if indicted is None, will cause exception otherwise
         if not indicated:
-            self.errors += 1
             return
 
+        tolerance = 5
+
         if indicated-tolerance <= step.furnace_equivalent <= indicated+tolerance:
-            if datetime.now()-step.time >= step.hold_length:
+            if datetime.now()-start_time >= step.hold_length:
                 return True
 
     def check_controlfile(self, controlfile):
@@ -582,39 +533,17 @@ class Experiment(Laboratory):
         return True
 
     def display_controlfile(self, controlfile):
-        column_names = ['target_temp', 'furnace_equivalent', 'hold_length',
-                        'heat_rate', 'interval', 'buffer', 'offset', 'fo2_gas', 'est_total_mins']
-        column_alias = ['Target [C]', 'Furnace Target [C]', 'Hold [hrs]',
-                        'Heat rate [C/min]', 'Interval', 'Buffer', 'Offset', 'Gas', 'Est. mins']
+        column_names = ['target_temp',  'hold_length', 'heat_rate', 'interval', 'buffer', 'offset', 'fo2_gas']
+        column_alias = ['Target [C]',  'Hold Length', 'Heat rate [C/min]', 'Interval', 'Buffer', 'Offset', 'Gas']
         print(controlfile.to_string(columns=column_names,
                                     header=column_alias, index=False) + '\n')
 
-def bode_plot():
-    plt.figure('Live Plot 2').clear()
+    def _print_step(self, step):
+        print('================')
 
-    fig, [ax0, ax1] = plt.subplots(2,1,num='Live Plot 2')
-    
-    ax0.set_ylim(bottom=0)
-    # if fit:
-    #     processing.circle_fit(Re, Im, ax)
-        # ax.axis('scaled')
-    # else:
-    ax0.axis('equal')
 
-    ax0.set_ylabel(r'$-Im(Z) [k\Omega]$')
-    ax0.set_xlabel(r'$Re(Z) [k\Omega]$')
-    ax0.ticklabel_format(style='sci', scilimits=(-3, 4), axis='both')
-    # ax.set_title('Cole-Cole')
 
-    color = 'tab:red'
-    ax1.set_xlabel('Frequency [Hz]')
-    ax1.set_ylabel(r'$Re(Z) [k\Omega]$', color=color)
-    ax1.tick_params(axis='y', labelcolor=color)
-    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+        print('================')
 
-    color = 'tab:blue'
-    ax2.set_ylabel('Phase Angle [degrees]', color=color)  # we already handled the x-label with ax1
-    ax2.tick_params(axis='y', labelcolor=color)
-    fig.tight_layout()
+        pass
 
-    return fig, [ax0,ax1,ax2]
