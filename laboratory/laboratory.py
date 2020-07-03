@@ -56,14 +56,7 @@ class Laboratory():
         self.data = self.process_data(data)
 
     def process_data(self, data):
-        data['time'] = data.index
-        data['time_elapsed'] = data.index - data.index[0]
-        data.set_index('time_elapsed', inplace=True)
-        data['temp'] = data[['thermo_1','thermo_2']].mean(axis=1)
-        data['kelvin'] = data.temp+273.18
-
-        data = processing.process_data(data)
-        return data
+        return processing.process_data(data)
 
     def restart_from_backup(self):
         """
