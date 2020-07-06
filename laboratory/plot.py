@@ -28,9 +28,10 @@ import numpy as np
 
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
-from laboratory import config, processing
+from laboratory import config, processing, modelling
 from matplotlib.offsetbox import AnchoredText
 import matplotlib.dates as mdates
+from impedance import preprocessing as pp
 
 FREQ = np.around(np.geomspace(20, 2000000, 50))
 GEO_FACTOR = 0.037571538461538455
@@ -121,8 +122,15 @@ def cole(data, temp_list, step=None, time=[], start=0, end=None, fit=False, **kw
         Re, Im = processing.get_Re_Im(data.iloc[index].z[start:end], data.iloc[index].theta[start:end])
         p = ax.scatter(Re/1000, Im/1000, c=FREQ[start:end], norm=colors.LogNorm())
         l = ax.plot(Re/1000, Im/1000, label=r'$@{}^\circ C$'.format(round(Tval)))
-        if fit:
-            processing.circle_fit(Re, Im, ax)
+        if fit:   
+            circuit = 'p(R1,C1)-p(R2,C2)'
+            C = 1e-10
+            guess = [5e+4, C, 1e+6, C]
+            complex_z = modelling.to_complex_z(Re,Im)
+            f, z = pp.ignoreBelowX(FREQ, complex_z)
+            f, z = pp.cropFrequencies(FREQ, complex_z, 200)
+            model = modelling.model_impedance(circuit,guess,f, z)
+
 
         # ax.add_artist(AnchoredText(r'$@{}^\circ C$'.format(Tval), loc=2))
 
@@ -225,13 +233,24 @@ def imp_diameter(data, step=None, time=[]):
 
     plt.show()
 
-def arrhenius(data, freq):
+def arrhenius(data, freq=None, circuit=None):
     """Plots inverse temperature versus conductivity"""
     fig, ax = plt.subplots(1)
-    Re,_,freq = impedance_at(data,freq)
+    if freq:
+        Re,_,freq = impedance_at(data,freq)
+        ax.plot(10000/data.kelvin, np.log10(1/Re*GEO_FACTOR), 'b')
+        ax.plot(10000/data.kelvin, np.log10(1/Re*GEO_FACTOR), 'rx')
+    elif circuit:
+        circuit = 'p(R1,C1)-p(R2,C2)'
+        C = 1e-10
+        guess = [5e+4, C, 1e+6, C]
+        complex_z = modelling.to_complex_z(z,theta)
+        model = modelling.model_impedance(circuit,guess,FREQ)
+    else:
+        raise ValueError('Must specify either a freq or circuit string for modelling conductivity')
 
-    ax.plot(10000/data.kelvin, np.log10(1/Re*GEO_FACTOR), 'b')
-    ax.plot(10000/data.kelvin, np.log10(1/Re*GEO_FACTOR), 'rx')
+
+
 
     ax.set_ylabel('Conductivity [S/m]')
     ax.set_xlabel('10000/Temperature [K]')

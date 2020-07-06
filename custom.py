@@ -2,23 +2,24 @@ from laboratory import Laboratory, processing
 from impedance import preprocessing as pp
 from impedance.models.circuits import CustomCircuit, Randles
 from impedance.visualization import plot_nyquist, plot_bode
+# from impedance import fitting
 import numpy as np
 import matplotlib.pyplot as plt
 import warnings
 
 def plot():
-    lab = lab = Laboratory(project_name='C:\\Users\\a1654095\\Google Drive\\Sam_Jennings\\PhD\\Test B')
+    # lab = lab = Laboratory(project_name='C:\\Users\\a1654095\\Google Drive\\Sam_Jennings\\PhD\\Test B')
 
-    data = lab.data.loc[lab.data.temp > 500]
-    data = data.iloc[0]
+    # data = lab.data.loc[lab.data.temp > 500]
+    # data = data.iloc[0]
 
     # for z,t in zip(data.z,data.theta):
     #     print(z, t)
 
-    re = np.multiply(data.z, np.cos(data.theta))
-    im = np.multiply(data.z, np.sin(data.theta))
+    # re = np.multiply(data.z, np.cos(data.theta))
+    # im = np.multiply(data.z, np.sin(data.theta))
     f = np.around(np.geomspace(20, 2000000, 50))
-    print(np.linspace(f.min(), f.max(), 6)[1:-1])
+    # print(np.linspace(f.min(), f.max(), 6)[1:-1])
     # print(f)
     # return
     test = "Z 4148386.171 -0.5270083016 \
@@ -88,70 +89,84 @@ Z 421.6272428 -1.612361718\
 
     z = re + 1j*im
 
-    print(z)
-
     # f, z = pp.readCSV('exampleData.csv')
 
     f, z = pp.ignoreBelowX(f, z)
-    # f, z = pp.cropFrequencies(f, z, 5000, 10**6)
-    # f, z = pp.cropFrequencies(f, z, 200, 10**6)
     f, z = pp.cropFrequencies(f, z, 200)
 
-    fig = plt.figure('a')
-    fig.clear()
-    fig, ax = plt.subplots(figsize=(5,5), num='a')
-    ax.loglog(f, np.abs(np.imag(z)),'rx')
+    # fig = plt.figure('a')
+    # fig.clear()
+    # fig, ax = plt.subplots(figsize=(5,5), num='a')
+    # ax.loglog(f, np.abs(np.imag(z)),'rx')
+    # i = np.argmax(np.sign(np.diff(np.imag(z)[20:])) <=0 )
+    # ax.loglog(f[i],np.imag(z)[i],'bo')
 
-    # circuit = Randles(CPE=True, initial_guess=[.01, 10**5,100,.05,1, 1])
+    # plt.show()
+    # return
 
-    # circuit = CustomCircuit(
-    #     'R0-p(R1,C1)-p(R2-Wo1,C2)',
-    #     # circuit = 'p(R1,C1)',
-    #     initial_guess = [.01, .01, 100, .01, .05, 100, 1],
-    # )
-    # circuit.fit(f, z)
-    # print(circuit)
-    # z_fit1 = circuit.predict(f)
+    capacitor = 9e-10
 
     circuits = [
-        ('p(R2,C2)', [80000, .01]), 
-        ('p(R1,C1)-p(R2,C2)', [80000, .01, 10**6, .01]), 
-        ('R0-p(R1,C1)-p(R2,C2)', [100, 80000, .01, 10**6, .01]), 
+        # ('p(R2,C2)', [80000, capacitor]), 
+        # ('p(R1,C1)-p(R2,C2)', [80000, .01, 10**6, .01]), 
+        # ('p(R1,C1)-p(R2,C2)', [5.36e+04, capacitor, 4.23e+06, capacitor]), 
+        ('p(R1,C1)-p(R2,C2)', [5e+4, capacitor, 1e+6, capacitor]), 
+        # ('R0-p(R1,C1)-p(R2,C2)', [100, 80000, .01, 10**6, .01]), 
     ]
 
 
-    fig, ax = plt.subplots(2, 1, figsize=(5,5), num='Bode')
-    plot_bode(ax, f, z)
-
-
+    # fig, ax = plt.subplots(2, 1, figsize=(5,5), num='Bode')
+    # plot_bode(ax, f, z)
 
     fig = plt.figure('Test')
     fig.clear()
     fig, ax = plt.subplots(figsize=(5,5), num='Test')
-    plot_nyquist(ax, z)
+    plot_nyquist(ax, z, fmt='o')
 
-    for i, circuit in enumerate(circuits):
+    for circuit in circuits:
+        model = model_impedance(*circuit,f, z)
+        res = get_resistance(model)
+        # print(res)
+        res = res/1000
+        SAMPLE_THICKNESS = 2.6e-3 #in mm
+        for i in [2.5, 2.6, 2.7]:
+            geo_fac = 97.686e-6/(i*1e-3)
+            print(res * geo_fac,'k.Ohm.m')
         
-        a = CustomCircuit(
-            name='Custom {}'.format(i),
-            circuit=circuit[0],
-            initial_guess=circuit[1]
-        )
+        # res = get_resistance(model)
 
-        fit = a.fit(f, z, method='lm', bounds=(-np.inf, np.inf))
-        print(fit)
-        plot_nyquist(ax, a.predict(f), fmt='.-')
-        
+        # SAMPLE_THICKNESS = 2.6 #in mm
+        # SAMPLE_DIAMETER = 12.7 #in mm
+        # SAMPLE_AREA = 97.686
 
-
+        GEO_FACTOR = 0.037571538461538455
+        print(res * GEO_FACTOR)
+        # plot_nyquist(ax, model.predict(np.geomspace(0.001,2000000,100)), fmt='-')
+      
     ax.axis('auto')
     ax.legend(['Data','Tyb']+[c[0] for c in circuits[1:]])
     plt.show()
 
 
-    # fig, ax = plt.subplots(2,1)
-    # plot_bode(ax, f, z)
-    # plt.show()
+def model_impedance(circuit, guess, freq, impedance, name='circuit'):
+    model = CustomCircuit(
+        name='Custom {}'.format(name),
+        circuit=circuit,
+        initial_guess=guess
+        )
+    model.fit(freq, impedance, method='lm', bounds=(-np.inf, np.inf))
+    return model
+
+def get_resistance(model):
+    """Only works for resistors in series"""
+    result = {}
+    for p, val in zip(model.get_param_names()[0], model.parameters_):
+        result[p] = val
+
+    return sum([val for element, val in result.items() if element.startswith('R')])
+
+
+
 
 if __name__ == '__main__':
     plot()
