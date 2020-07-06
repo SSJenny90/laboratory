@@ -1,7 +1,7 @@
 # Local files and folders #
 ###########################
 logfiles/
-datafiles/
+data/
 test.py
 docs/logfiles/
 docs/_build/
