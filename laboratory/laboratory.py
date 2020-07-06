@@ -56,7 +56,7 @@ class Laboratory():
         self.data = self.process_data(data)
 
     def process_data(self, data):
-        return processing.process_data(data, self.sample_area, self.sample_thickness)
+        return processing.process_data(data, 97.686, 2.6)
         # return processing.process_data(data)
 
     def restart_from_backup(self):
@@ -175,7 +175,7 @@ class Experiment(Laboratory):
         self.plot = plot.LivePlot1()
         self.plot2 = plot.LivePlot2(self.settings['freq'])
 
-        print(self.settings['freq'])
+        # print(self.settings['freq'])
 
         # iterate through control file until finished
         for i, step in self.controlfile.iterrows():
@@ -195,7 +195,7 @@ class Experiment(Laboratory):
 
         :param step: a single row from the control file
         """
-        self.plot2.draw_target_fugacity(step.buffer, [self.controlfile.target_temp.min(), self.controlfile.target_temp.max()])
+        # self.plot2.draw_target_fugacity(step.buffer, [self.controlfile.target_temp.min(), self.controlfile.target_temp.max()])
         self.header(step, i)
 
         # adjust furnace settings
@@ -209,7 +209,7 @@ class Experiment(Laboratory):
             # get a suite of measurements
             self.prepare(i)
             self.get_stage_position()
-            self.get_furnace()
+            self.get_furnace(step)
             self.get_daq()
             self.set_fugacity(step)
             self.get_gas()
@@ -278,7 +278,7 @@ class Experiment(Laboratory):
         self.measurement['co2'] = self.gas.co2.mass_flow()
         self.measurement['co'] = self.gas.co_a.mass_flow() + self.gas.co_b.mass_flow()
 
-    def get_furnace(self):
+    def get_furnace(self,step):
         """Retrieves the indicated temperature of the furnace and saves to Data structure and file
 
         .. note::
@@ -289,7 +289,7 @@ class Experiment(Laboratory):
         :type target: float
         """
         self.update_progress_bar('Getting temperature data')
-        self.measurement['target'] = self.furnace.setpoint_1()
+        self.measurement['target'] = step.target_temp
         self.measurement['indicated'] = self.furnace.indicated()
 
     def get_daq(self):
@@ -299,14 +299,13 @@ class Experiment(Laboratory):
         :rtype: list
         """
         self.update_progress_bar('Getting thermopower data')
-        self.measurement = self.measurement.update(**self.daq.get_thermopower())
+        self.measurement.update(self.daq.get_thermopower())
 
     def get_impedance(self):
         """Sets up the lcr meter and retrieves complex impedance data at all frequencies specified by Data.freq. Data is saved in Data.imp.z and Data.imp.theta as a list of length Data.freq. Values are also saved to the data file.
         """
         self.daq.toggle_switch('impedance')
         self.update_progress_bar('Collecting impedance data')
-        freq = self.settings['freq']
 
         z, theta = [], []
         for _ in self.settings['freq']:
@@ -317,11 +316,10 @@ class Experiment(Laboratory):
             z.append(line['z'])
             theta.append(line['theta'])
 
-            # Don't want a dodgy plot call to ruin the experiment
-            try:
-                self.plot2.update_right(z, theta)
-            except Exception:
-                pass
+            # # Don't want a dodgy plot call to ruin the experiment
+            # try:
+            # except Exception:
+            #     pass
 
         results = {'z':z,'theta':theta}
         self.measurement.update(results)
@@ -337,10 +335,12 @@ class Experiment(Laboratory):
 
     def update_plots(self, data):
         # dont want plot calls to halt the experiment
+
         try:
             self.plot.update(data, self.sample_area, self.sample_thickness)
-            self.plot2.update_left(data, self.sample_area, self.sample_thickness)
-        except Exception:
+            self.plot2.update(data, self.sample_area, self.sample_thickness)   
+        except Exception as e:
+            print(e)
             pass
 
     def setup(self):
@@ -355,14 +355,13 @@ class Experiment(Laboratory):
             raise SetupError('Incorrect control file format!')
         
         if self.settings.get('freq') is None:
-            print(1)
             self.set_frequencies()
 
         # set up logging file handler
         loggers.file_handler(logger, self.project_name)
 
         # configure instruments
-        print(self.settings['freq'])
+        # print(self.settings['freq'])
         self.lcr.configure(self.settings['freq'])
         # self.daq.configure()
 
