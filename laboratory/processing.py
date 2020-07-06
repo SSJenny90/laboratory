@@ -245,7 +245,11 @@ def calculate_resistivity(data):
     return (area / thickness) * resistance
 
 def actual_fugacity(data):
-    ratio = data.co2/data.co
+    try:
+        ratio = data.co2/data.co
+    except ZeroDivisionError:
+        return np.nan
+        
     fugacity_list = np.linspace(data.fugacity-.1,data.fugacity+.1,10)
     r = [fugacity_co(f, data.temp) for f in fugacity_list]   
     popt2 = optimize.curve_fit(parabola, r, fugacity_list)[0]
@@ -254,25 +258,26 @@ def actual_fugacity(data):
 def process_data(data, sample_area, sample_thickness):
     if isinstance(data, list):
         data = pd.DataFrame(data)
-    if data.shape[0] > 1:
-        # print(data.time.head())
-        data['time_elapsed'] = data.index - data.index[0]
-    else:
-        data['time_elapsed'] = pd.Timedelta(0)
+    # if data.shape[0] > 1:
+    #     # print(data.time.head())
+    #     data['time_elapsed'] = data.index - data.index[0]
+    # else:
+    #     data['time_elapsed'] = pd.Timedelta(0)
         
     # data.set_index('time_elapsed', inplace=True)
+    # print(data.head())
     # data.set_index('time', inplace=True)
     
     data['temp'] = data[['thermo_1','thermo_2']].mean(axis=1)
     data['kelvin'] = data.temp+273.18
     data['actual_fugacity'] = data.apply(lambda x: actual_fugacity(x), axis=1)
-    data['resistance'] = data.apply(lambda x: fit_impedance(x,offset=5), axis=1)
+    # data['resistance'] = data.apply(lambda x: fit_impedance(x,offset=5), axis=1)
 
-    if sample_area and sample_thickness:
-        area = sample_area * 10 ** -6
-        thickness = sample_thickness * 10 ** -3
-        data['resistivity'] = (area / thickness) * data.resistance
-        data['conductivity'] = 1/data.resistivity
+    # if sample_area and sample_thickness:
+    #     area = sample_area * 10 ** -6
+    #     thickness = sample_thickness * 10 ** -3
+    #     data['resistivity'] = (area / thickness) * data.resistance
+    #     data['conductivity'] = 1/data.resistivity
 
     # thickness = config.SAMPLE_THICKNESS * 10 ** -3
     # if not config.SAMPLE_AREA:
