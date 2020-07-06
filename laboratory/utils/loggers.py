@@ -14,17 +14,18 @@ def lab(name):
     if logger.hasHandlers():
         logger.handlers.clear()
 
-    #create a folder for the log files if none exists
-    folder = '../log'
-    if not os.path.exists(config.LOG_DIR): os.mkdir(config.LOG_DIR)
-    filepath = os.path.join(config.LOG_DIR, '{}_{}.log'.format(config.PROJECT_NAME,time.strftime('%d-%m-%Y_%H%M')))
+    #set up console handler
+    ch = logging.StreamHandler()
+    ch.setFormatter(logging.Formatter('%(message)s'))
+    ch.setLevel('INFO')
+    logger.addHandler(ch)
+    return logger
 
-    def sorted_ls(path):
-        """Removes all but the 10 most recent logfiles -- prevent clutter during testing"""
-        mtime = lambda f: os.stat(os.path.join(path, f)).st_mtime
-        files = list(sorted(os.listdir(path), key=mtime))
-        for f in files[1:-10]: os.remove(os.path.join(folder,f))
-    # sorted_ls(folder)
+def file_handler(logger, project_name):
+    # #create a folder for the log files if none exists
+    # if not os.path.exists(config.LOG_DIR): 
+    #     os.mkdir(config.LOG_DIR)
+    filepath = os.path.join(config.DATA_DIR, project_name, '{}_{}.log'.format(project_name,time.strftime('%d-%m-%Y_%H%M')))
 
     #setup file handler
     fh = logging.FileHandler(filepath)
@@ -32,10 +33,4 @@ def lab(name):
     fh.setFormatter(formatter)
     fh.setLevel('DEBUG')
     logger.addHandler(fh)
-
-    #set up console handler
-    ch = logging.StreamHandler()
-    ch.setFormatter(logging.Formatter('%(message)s'))
-    ch.setLevel('INFO')
-    logger.addHandler(ch)
     return logger

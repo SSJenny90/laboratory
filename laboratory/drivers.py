@@ -5,15 +5,14 @@ Contains the drivers for each instrument in the laboratory.
 import math
 import os
 import pickle
-import pprint
-import traceback
-
+from functools import wraps
 import numpy as np
 
+from serial.tools import list_ports
 import minimalmodbus
 import visa
 from alicat import FlowController, FlowMeter
-from laboratory import config
+from laboratory import config, processing
 from laboratory.utils import loggers
 from laboratory.utils.exceptions import (CalibrationError,
                                          InstrumentConnectionError,
@@ -21,7 +20,22 @@ from laboratory.utils.exceptions import (CalibrationError,
                                          InstrumentWriteError)
 
 logger = loggers.lab(__name__)
-pp = pprint.PrettyPrinter(width=1, indent=4)
+
+def command(func):
+    @wraps(func)
+    def wrapper(*args,**kwargs):
+        for i in range(config.GLOBAL_MAXTRY):
+            if kwargs.get('message'):
+                logger.debug('\t{}...'.format(kwargs.get('message')))
+            try:
+                return func(*args,**kwargs)
+                # return self.device.query_ascii_values(command)
+            except Exception as e:
+                if i == config.GLOBAL_MAXTRY-1:
+                    logger.error('Error: "{}" failed! Check log for details'.format(kwargs.get('message')))
+                    logger.debug(InstrumentReadError(e))
+                    return False
+    return wrapper
 
 
 class USBSerialInstrument():
@@ -39,6 +53,8 @@ class USBSerialInstrument():
             logger.info('{} connected at {}'.format(
                 self.__class__.__name__, port))
             self.status = True
+
+        self.errors = []
 
     def __str__(self):
         return '\n'.join([key+": "+str(val) for key, val in self.__dict__.items()])
@@ -109,7 +125,7 @@ class LCR(USBSerialInstrument):
         """
 
     def __init__(self):
-        self.address = config.LCR_ADDRESS
+        self.address = config.LCR['address']
         super().__init__(port=self.address)
 
     def get_complex_impedance(self):
@@ -126,7 +142,7 @@ class LCR(USBSerialInstrument):
         self.display('list')
         self.function()
         if freq is not None:
-            freq = np.around(np.geomspace(20, 20**6, 50))
+            freq = np.around(np.geomspace(20, 2*10**6, 50))
         self.write_freq(freq)
         self.list_mode('step')
         self._set_source()
@@ -136,6 +152,7 @@ class LCR(USBSerialInstrument):
         """Triggers the next measurement"""
         return self.write('TRIG:IMM')
 
+    # @command
     def write_freq(self, freq):
         """Writes the desired frequencies to the LCR meter
 
@@ -143,7 +160,7 @@ class LCR(USBSerialInstrument):
         :type freq: array like
         """
         freq_str = ','.join('{}'.format(n) for n in freq)
-        return self.write(':LIST:FREQ ' + freq_str, 'Loading frequencies')
+        return self.write(':LIST:FREQ ' + freq_str, message='Loading frequencies')
 
     def _set_format(self, mode='ascii'):
         """Sets the format type of the LCR meter. Defaults to ascii. TODO - allow for other format types"""
@@ -257,13 +274,12 @@ class DAQ(USBSerialInstrument):
         """
         command = 'ROUT:SCAN (@{},{},{})'.format(self.tref, self.te1, self.te2)
         self.write(command)
-        data = [np.nan]*3
-        datax = self.read('READ?', 'Getting temperature data')
-        # print(datax)
-        if datax:
-            data = datax
-        return {k: v for k, v in zip(['reference', 'thermo_1', 'thermo_2'], data)}
-
+        data = self.read('READ?', 'Getting temperature data')
+        if data:
+            return {k: v for k, v in zip(['reference', 'thermo_1', 'thermo_2'], data)}
+        else:
+            return [np.nan]*3
+            
     def get_voltage(self):
         """Gets voltage across the sample from the DAQ
 
@@ -271,7 +287,9 @@ class DAQ(USBSerialInstrument):
         :rtype: float
         """
         self.write('ROUT:SCAN (@{})'.format(self.volt))
-        return {'voltage': self.read('READ?', 'Getting voltage data')[0]}
+        voltage = self.read('READ?', 'Getting voltage data')
+        if voltage:
+            return {'voltage': voltage[0]}
 
     def get_thermopower(self):
         """Collects both temperature and voltage data and returns a dict"""
@@ -810,15 +828,19 @@ class Stage():
                 raise ValueError(
                     '{} is not a valid command for the lineaer stage'.format(position))
 
-        current_position = self.position
+        
         if position > self.max_xpos:
             position = self.max_xpos
         elif position <= 0:
             return self.reset()
 
-        displacement = int(position - current_position)
-        if not displacement:
-            return True
+        current_position = self.position
+        if current_position is not None:
+            displacement = int(position - self.position)
+            if not displacement:
+                return True
+        else:
+            return False
 
         return self._write('X{0:+}'.format(displacement), 'Setting x-position')
 
@@ -1151,10 +1173,10 @@ class GasControllers():
 
     def set_to_buffer(self, buffer, offset, temp, gas_type):
 
-        log_fugacity = self.fo2_buffer(temp, buffer) + offset
+        log_fugacity = processing.fo2_buffer(temp, buffer) + offset
 
         if gas_type == 'h2':
-            ratio = self.fugacity_h2(log_fugacity, temp)
+            ratio = processing.fugacity_h2(log_fugacity, temp)
 
             # if 1/10**config.H2['precision']*ratio >= config.CO2['upper_limit']:
             #     co2 = 200
@@ -1173,7 +1195,7 @@ class GasControllers():
                           'co_b': 0, })
 
         elif gas_type == 'co':
-            ratio = self.fugacity_co(log_fugacity, temp)
+            ratio = processing.fugacity_co(log_fugacity, temp)
 
             # set the optimal co2 flow rate
             # higher ratios require higher co2 mass flow for greater precision
@@ -1195,7 +1217,8 @@ class GasControllers():
 
             co2 = round(co*ratio, 1)
 
-            logger.debug('Desired ratio: {} Actual: {}'.format(ratio, co2/co))
+            if co:
+                logger.debug('Desired ratio: {} Actual: {}'.format(ratio, co2/co))
             self.set_all({'co2': co2,
                           'co_a': int(co),
                           'co_b': round(co - int(co), 3),
@@ -1206,233 +1229,15 @@ class GasControllers():
             return False
 
         return [log_fugacity, ratio]
+ 
     
-    def fugacity_co(self, fo2p, temp):
-        """Calculates the ratio CO2/CO needed to maintain a constant oxygen fugacity at a given temperature.
-
-        :param fo2p: desired oxygen fugacity (log Pa)
-        :type fo2p: float, int
-
-        :param temp: temperature (u'\N{DEGREE SIGN}C)
-        :type temp: float, int
-
-        :returns: CO2/CO ratio
-        :rtype: float
-        """
-
-        a10 = 62.110326
-        a11 = -2.144446e-2
-        a12 = 4.720325e-7
-        a13 = -4.5574288e-12
-        a14 = -7.3430182e-15
-
-        t0 = 273.18      # conversion C to K
-        rgc = .00198726  # gas constant
-
-        tk = temp + t0
-        fo2 = 1.01325*(10**(fo2p-5))  # convert Pa to atm
-
-        g1 = (((a14*temp+a13)*temp+a12)*temp+a11)*temp+a10  # Gibbs free energy
-        k1 = math.exp(-g1/rgc/tk)  # equilibrium constant
-
-        CO = k1 - 3*k1*fo2 - 2*fo2**1.5
-        CO2 = 2*k1*fo2 + fo2 + fo2**1.5 + fo2**0.5
-
-        return CO2/CO
-
-    def fugacity_h2(self, fo2p, temp):
-        """Calculates the ratio CO2/H2 needed to maintain a constant oxygen fugacity at a given temperature.
-
-        :param fo2p: desired oxygen fugacity (log Pa)
-        :type fo2p: float, int
-
-        :param temp: temperature (u'\N{DEGREE SIGN}C)
-        :type temp: float, int
-
-        :returns: CO2/H2 ratio
-        :rtype: float
-        """
-        a10 = 62.110326
-        a11 = -2.144446e-2
-        a12 = 4.720325e-7
-        a13 = -4.5574288e-12
-        a14 = -7.3430182e-15
-
-        a30 = 55.025254
-        a31 = -1.1212207e-2
-        a32 = -2.0800406e-6
-        a33 = 7.6484887e-10
-        a34 = -1.1232833e-13
-
-        t0 = 273.18      # conversion C to K
-        rgc = .00198726  # gas constant
-
-        tk = temp + t0
-        fo2 = 1.01325*(10**(fo2p-5))  # convert Pa to atm
-
-        g1 = (((a14*temp+a13)*temp+a12)*temp+a11)*temp+a10  # Gibbs free energy
-        g3 = (((a34*temp+a33)*temp+a32)*temp+a31)*temp+a30  # Gibbs free energy
-        k1 = math.exp(-g1/rgc/tk)  # equilibrium constant
-        k3 = math.exp(-g3/rgc/tk)  # equilibrium constant
-
-        a = k1/(k1 + fo2**0.5)
-        b = fo2**0.5/(k3 + fo2**0.5)
-
-        H2 = a*(1-fo2) - 2*fo2
-        CO2 = b*(1-fo2) + 2*fo2
-
-        return CO2/H2
-
-    def fo2_buffer(self, temp, buffer, pressure=1.01325):
-        """
-        Calculates oxygen fugacity at a given temperature and fo2 buffer
-
-        =============== ===========================================================
-        input options   type of fo2 buffer
-        =============== ===========================================================
-        'QFM'           quartz-fayalite-magnetite
-        'IW'            iron-wustite
-        'WM'            wustite-magnetite
-        'MH'            magnetite-hematite
-        'QIF'           quartz-iron-fayalite
-        'NNO'           nickel-nickel oxide
-        'MMO'           molyb
-        'CCO'           cobalt-cobalt oxide
-        =============== ===========================================================
-
-        :param temp: Temperature in u'\N{DEGREE SIGN}C'
-        :type temp: float, int
-
-        :param buffer: buffer type (see table for input options)
-        :type buffer: str
-
-        :param pressure: pressure in bar (default: surface pressure)
-        :type pressure: float, int
-
-        :returns: log10 oxygen fugacity
-        :rtype: float
-        """
-
-        def fug(buffer, temp, pressure):
-            temp = temp+273  # convert Celsius to Kelvin
-
-            if temp > buffer.get('Tc', False):
-                a = buffer['a2']
-            else:
-                a = buffer['a1']
-
-            if len(a) == 2:
-                return a[0]/temp + a[1]
-            elif len(a) == 3:
-                return a[0]/temp + a[1] + a[2]*(pressure - 1e5)/temp
-
-        BUFFERS = {
-            'iw': {  # Iron-Wuestite - Myers and Eugster (1983)
-                'a1': [-27538.2, 11.753]
-            },
-            'qfm': {  # Quartz-Fayalite-Magnetite - Myers and Eugster (1983)
-                'a1': [-27271.3, 16.636],        # 298 to 848 K
-                'a2': [-24441.9, 13.296],       # 848 to 1413 K
-                'Tc': 848,  # K
-            },
-            'wm': { # O'Neill (1988)
-                'a1': [-32356.6, 17.560]
-            },
-            'mh': { # Myers and Eugster (1983)
-                'a1': [-25839.1, 20.581],        # 298 to 848 K
-                'a2': [-23847.6, 18.486],       # 848 to 1413 K
-                'Tc': 943,  # K
-            },
-            'qif': { # Myers and Eugster (1983)
-                'a1': [-30146.6, 14.501],        # 298 to 848 K
-                'a2': [-27517.5, 11.402],       # 848 to 1413 K
-                'Tc': 848,  # K
-            },
-            'nno': { # a[0:1] from Myers and Gunter (1979) a[3] from Dai et al. (2008)
-                'a1': [-24920, 14.352, 4.6e-7]
-            },
-            'mmo': { # a[3] from Dai et al. (2008)
-                'a1': [-30650, 13.92, 5.4e-7]
-            },
-            'cco': {
-                'a1': [-25070, 12.942]
-            },
-            'fsqm': {
-                'a1': [-25865, 14.1456]
-            },
-            'fsqi': {
-                'a1': [-29123, 12.4161]
-            },
-        }
-
-        # Many of these empirical relationships are determined fo2 in atm.
-        # These relationships have been converted to Pa.
-        # if buffer == 'iw': # Iron-Wuestite
-        #     # Myers and Eugster (1983)
-        #     # a[1] = [-26834.7 11.477 5.2e-7]        # 833 to 1653 K
-        #     # a[3] pressure term from Dai et al. (2008)
-        #     # a = [-2.7215e4 11.57 5.2e-7] - O'Neill (1988)
-        #     a1 = [-27538.2, 11.753]
-        # elif buffer == 'wm': # Wuestite-Magnetite
-        #     # # Myers and Eugster (1983)
-        #     # a[1] = [-36951.3 21.098]        # 1273 to 1573 K
-        #     # O'Neill (1988)
-        #     a1 = [-32356.6, 17.560]
-        # elif buffer == 'osi': # Olivine-Quartz-Iron
-        #     # Nitsan (1974)
-        #     Xfa = 0.10
-        #     gamma = (1 - Xfa)**2*((1 - 1690/temp)*Xfa - 0.24 + 730/temp)
-        #     afa = gamma*Xfa
-        #     fo2 = 10**(-26524/temp + 5.54 + 2*math.log10(afa) + 5.006)
-        #     return fo2
-        # elif buffer == 'oqm': # Olivine-Quartz-Magnetite
-        #     # Nitsan (1974)
-        #     Xfa = 0.10
-        #     Xmt = 0.01
-        #     gamma = (1 - Xfa)**2*((1 - 1690/temp)*Xfa - 0.24 + 730/temp)
-        #     afa = gamma*Xfa
-        #     fo2 = 10**(-25738/temp + 9 - 6*math.log10(afa) + 2*math.log10(Xmt) + 5.006)
-        #     return fo2
-        # elif buffer == 'nno': # Ni-NiO
-        #     #a = [-24930 14.37] # Huebner and Sato (1970)
-        #     #a = [-24920 14.352] # Myers and Gunter (1979)
-        #     a1 = [-24920, 14.352, 4.6e-7]
-        #     # a[3] from Dai et al. (2008)
-        # elif buffer == 'mmo': # Mo-MoO2
-        #     a1 = [-30650, 13.92, 5.4e-7]
-        #     # a[3] from Dai et al. (2008)
-        # elif buffer == 'cco': # Co-CoO
-        #     # Myers and Gunter (1979)
-        #     a1 = [-25070, 12.942]
-        # elif buffer == 'g': # Graphite, CO-CO2
-        #     # French & Eugster (1965)
-        #     fo2 = 10**(-20586/temp - 0.044 + math.log10(pressure) - 2.8e-7*(pressure - 1e5)/temp)
-        #     return
-        # elif buffer == 'fsqm': # Ferrosilite-Quartz-Magnetite
-        #     # Seifert (1982)
-        #     # Kuestner (1979)
-        #     a1 = [-25865, 14.1456]
-        # elif buffer == 'fsqi': # Ferrosilite-Quartz-Iron
-        #     # Seifert et al. (1982)
-        #     # Kuestner 1979
-        #     a1 = [-29123, 12.4161]
-        # else:
-        #     raise ValueError('(fugacityO2): Unknown buffer.')
-
-        try:
-            return fug(BUFFERS[buffer], temp, pressure)
-        except KeyError:
-            pass
-
-
-
 def get_ports():
     '''Returns a list of available serial ports for connecting to the furnace and stage
 
     :returns: list of available ports
     :rtype: list, str
     '''
-    return [comport.device for comport in list_ports.comports()]
+    return {comport.manufacturer: comport.device for comport in list_ports.comports()}
 
 
 def connect():

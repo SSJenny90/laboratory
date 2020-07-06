@@ -5,7 +5,6 @@ from impedance.visualization import plot_nyquist, plot_bode
 # from impedance import fitting
 import numpy as np
 import matplotlib.pyplot as plt
-import warnings
 
 def plot():
     # lab = lab = Laboratory(project_name='C:\\Users\\a1654095\\Google Drive\\Sam_Jennings\\PhD\\Test B')
@@ -86,7 +85,9 @@ Z 421.6272428 -1.612361718\
     re = np.multiply(z, np.cos(theta))
     im = np.multiply(z, np.sin(theta))
 
+    im = np.multiply(data.z, np.sin(data.theta))
 
+    f = np.around(np.geomspace(20, 2000000, 50))
     z = re + 1j*im
 
     # f, z = pp.readCSV('exampleData.csv')
@@ -118,6 +119,7 @@ Z 421.6272428 -1.612361718\
     # fig, ax = plt.subplots(2, 1, figsize=(5,5), num='Bode')
     # plot_bode(ax, f, z)
 
+    ]
     fig = plt.figure('Test')
     fig.clear()
     fig, ax = plt.subplots(figsize=(5,5), num='Test')
@@ -169,4 +171,4 @@ def get_resistance(model):
 
 
 if __name__ == '__main__':
-    plot()
+    pass
