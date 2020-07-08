@@ -179,8 +179,13 @@ class Experiment(Laboratory):
 
         # iterate through control file until finished
         for i, step in self.controlfile.iterrows():
+            
+            if step.type == 'conductivity':
             # enter the main measurement loop
-            data = self.measurement_cycle(step, i)
+              data = self.measurement_cycle(step, i)
+            elif step.type == 'thermopower':
+              data = self.thermopower_loop(step,i)
+
             if not data.empty:
                 logger.info('Step {} complete!'.format(i))
             else:
@@ -189,13 +194,58 @@ class Experiment(Laboratory):
 
         self.shut_down()
 
+
+    def thermopower_loop(self, step, i):
+        """ Takes a suite of thermopwoer measurements"""
+        # self.plot2.draw_target_fugacity(step.buffer, [self.controlfile.target_temp.min(), self.controlfile.target_temp.max()])
+        
+        self.header(step, i)
+        self.furnace.timer_duration(hours=4)
+
+        target_position = self.stage.find_gradient_position(step.gradient)
+        offset = self.stage.home - target_position
+        all_steps = np.linspace(target_position,self.stage.home + offset, 20).astype(int)
+        # steps = np.linspace(self.stage.home,target_position,10).astype(int)
+        # more = np.linspace(self.stage.home,opp_target_position,10).astype(int)
+        # all_steps = np.concatenate((steps, more))
+
+
+        self.stage.go_to(step)
+        time.sleep(60*60)   #wait an hour to thermally equilibrate for the first measurement
+        start_time = dt.now()
+        data = []
+        for step in all_steps[1:]:
+            self.measurement = dict(
+                step = i,
+                time = datetime.now(),
+                )
+            self.get_stage_position()
+            self.set_fugacity(step)
+            self.get_gas()
+
+            n=10    #take 10 measurements at the current position
+            self.measurement['n_voltages'] = n
+            voltage = []
+            for _ in range(0,n):
+                voltage.append(self.daq.get_voltage()['voltage'])
+                time.sleep(1)
+
+            self.measurement['voltage'] = np.mean(np.array(voltage))
+            data.append(self.measurement)
+
+            # go to next position
+            self.stage.go_to(step)
+            # sleep for 10 minutes to allow temp to thermally equilibrate
+            time.sleep(10*60)
+
+        return self.save_and_export(data, start_time, step, i)
+
     def measurement_cycle(self, step, i):
         """
         This is the main measurement loop of the program. All data is accessed and saved from within this loop
 
         :param step: a single row from the control file
         """
-        # self.plot2.draw_target_fugacity(step.buffer, [self.controlfile.target_temp.min(), self.controlfile.target_temp.max()])
         self.header(step, i)
 
         # adjust furnace settings
@@ -210,13 +260,14 @@ class Experiment(Laboratory):
             self.prepare(i)
             self.get_stage_position()
             self.get_furnace(step)
-            self.get_daq()
+            self.get_thermopower()
             self.set_fugacity(step)
             self.get_gas()
             self.get_impedance()
             data.append(self.measurement)
             self.update_progress_bar('Complete')
             self.update_plots(data)
+
 
             CountdownTimer(hide=self.debug,minutes=step.interval).start(
                 start_time = self.measurement['time'], 
@@ -227,17 +278,15 @@ class Experiment(Laboratory):
                 return self.save_and_export(data, start_time, step, i)
 
     def prepare(self,i):
-        now = datetime.now()
         self.measurement = {'step': i}
-        self.measurement['time'] = now
+        self.measurement['time'] = datetime.now()
         self.progress_bar = tqdm(
             total = 6+len(self.settings['freq']),
             bar_format = '{l_bar}{bar}{postfix}',
             disable = self.debug,
             )
-        self.furnace.reset_timer()
         self.mean_temp = self.daq.mean_temp
-        logger.debug('Collecting data @ {:.1f}\N{DEGREE SIGN}C'.format(self.mean_temp))
+        logger.debug('Collecting thermopower @ {:.1f}\N{DEGREE SIGN}C'.format(self.mean_temp))
 
         self.progress_bar.set_description_str(
             '{time} @ {temp:.1f}\N{DEGREE SIGN}C'.format(
@@ -292,7 +341,7 @@ class Experiment(Laboratory):
         self.measurement['target'] = step.target_temp
         self.measurement['indicated'] = self.furnace.indicated()
 
-    def get_daq(self):
+    def get_thermopower(self):
         """Retrieves thermopower data from the DAQ and saves to Data structure and file
 
         :returns: [thermistor, te1, te2, voltage]
@@ -324,6 +373,11 @@ class Experiment(Laboratory):
         results = {'z':z,'theta':theta}
         self.measurement.update(results)
         self.daq.toggle_switch('thermo')
+
+    def move_stage(self,step):
+
+      pass
+
 
     def update_progress_bar(self,message=None):
         self.progress_bar.set_postfix_str(message)

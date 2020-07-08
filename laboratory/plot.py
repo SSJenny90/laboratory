@@ -12,12 +12,13 @@ from matplotlib.offsetbox import AnchoredText
 import matplotlib.dates as mdates
 from impedance import preprocessing as pp
 from datetime import datetime as dt
-plt.style.use('seaborn-darkgrid')
+from impedance.models.circuits import fitting
+# plt.style.use('seaborn-darkgrid')
 
 plt.ion()
 FREQ = np.around(np.geomspace(20, 2000000, 50))
 K_OHM = r'k\Omega'
-GEO_FACTOR =  97.686 / 2.6
+GEO_FACTOR =  97.686e-6 / 2.6e-3
 
 def index_temp(T, Tx):
     # returns the index of T nearest to the specified temp Tx. For use in colecole plots
@@ -39,11 +40,10 @@ def index_data(data, step, time):
 def voltage(data, step=None, time=[], kwargs={}):
     """Plots voltage versus time"""
     data = index_data(data,step,time)
-    hours = data.index.seconds / 60 / 60 + data.index.days * 24
 
     fig, ax = plt.subplots()
 
-    ax.plot(hours, data['voltage'], 'rx')
+    ax.plot(data['voltage'], 'rx')
     ax.set_ylabel('Voltage [mV]')
     ax.tick_params(direction='in')
     ax.set_xlabel('Time Elapsed [hours]')
@@ -67,6 +67,38 @@ def resistance(data, freq, step=None, time=[]):
     fig.autofmt_xdate()
     plt.show()
 
+def conductivity(data, temp_list=None, ax=None, fmt='o'):
+
+    def calculate(row):
+      f, z = pp.cropFrequencies(FREQ, row.complex_z, 200)
+      f, z = pp.ignoreBelowX(f, z)
+      circuit = 'p(R1,C1)-p(R2,C2)'
+      guess = [5e+4, 1e-10, 5e+6, 1e-10]
+      model = modelling.model_impedance(circuit,guess,f, z)
+      return modelling.get_resistance(model)
+
+
+    resistance = []
+    temp_out = []
+    if temp_list:
+        for temp in temp_list:
+            [index, _] = index_temp(data.temp,temp)
+            row = data.iloc[index]
+            resistance.append(calculate(row))
+            temp_out.append(row.kelvin)
+    else:
+        for _, row in data.iterrows():
+            resistance.append(calculate(row))
+            temp_out.append(row.wkelvin)
+
+    conductivity = 1 / (np.array(resistance) * GEO_FACTOR)
+
+    ax.plot(data.index,np.log10(conductivity),fmt)
+
+    ax.set_ylabel('Log10 Conductivity [S/m]')
+
+    ax.tick_params(direction='in')
+
 def temperature(data, step=None, time=[], kwargs={}):
     """Plots furnace indicated and target temperature, thermocouple temperature and thermistor data versus time elapsed. A dictionary of key word arguments may be passed through to customize this plot"""
     data = index_data(data,step,time)
@@ -85,7 +117,7 @@ def temperature(data, step=None, time=[], kwargs={}):
     ax.legend()
     plt.show()
 
-def cole(data, temp_list, step=None, time=[], start=0, end=None, fit=False, **kwargs):
+def cole(data, temp_list, start=0, end=None, fit=False, **kwargs):
     """Creates a Cole-Cole plot (imaginary versus real impedance) at a given temperature. Finds the available data to the temperature specified by 'temp'. A linear least squares circle fit can be added by setting fit=True.
 
     :param temp: temperature in degrees C
@@ -93,41 +125,30 @@ def cole(data, temp_list, step=None, time=[], start=0, end=None, fit=False, **kw
     """
     fig, ax = plt.subplots()
 
-    data = index_data(data, step, time)
-    # index = np.round(np.linspace(0, len(data) - 1, n)).astype(int)
-    # index = index_temp(data.temp,temp)
-    # data = data.iloc[[index[0]]]
-
+    resistance = []
     for temp in temp_list:
         [index, Tval] = index_temp(data.temp,temp)
+        z = data.complex_z.iloc[index]
+        f, z = pp.cropFrequencies(FREQ, z, 200)
+        f, z = pp.ignoreBelowX(f, z)
+        p = ax.scatter(np.real(z)/1000, np.abs(np.imag(z))/1000, c=f, norm=colors.LogNorm())
 
-        Re, Im = processing.get_Re_Im(data.iloc[index].z[start:end], data.iloc[index].theta[start:end])
-        p = ax.scatter(Re/1000, Im/1000, c=FREQ[start:end], norm=colors.LogNorm())
-        l = ax.plot(Re/1000, Im/1000, label=r'$@{}^\circ C$'.format(round(Tval)))
         if fit:   
             circuit = 'p(R1,C1)-p(R2,C2)'
             C = 1e-10
-            guess = [5e+4, C, 1e+6, C]
-            complex_z = modelling.to_complex_z(Re,Im)
-            f, z = pp.ignoreBelowX(FREQ, complex_z)
-            f, z = pp.cropFrequencies(FREQ, complex_z, 200)
+            guess = [5e+4, C, 5e+6, C]
             model = modelling.model_impedance(circuit,guess,f, z)
-
-
-        # ax.add_artist(AnchoredText(r'$@{}^\circ C$'.format(Tval), loc=2))
-
-    # for _, row in data.iterrows():
-    #     Tval = round(row.temp)
-    #     Re, Im = processing.get_Re_Im(row.z[start:end], row.theta[start:end])
-    #     p = ax.scatter(Re/1000, Im/1000, c=FREQ[start:end], norm=colors.LogNorm())
-    #     l = ax.plot(Re/1000, Im/1000, 'b')
-    #     if fit:
-    #         processing.circle_fit(Re, Im, ax)
+            rmse = fitting.rmse(z, model.predict(f))
+            print(rmse)
+            predicted = model.predict(np.geomspace(0.001,2000000,100))
+            ax.plot(np.real(predicted)/1000, np.abs(np.imag(predicted))/1000, label=r'$@{}^\circ C$'.format(round(Tval)))       
+            resistance.append(modelling.get_resistance(model))
+            ax.add_artist(AnchoredText(circuit, loc=2))
 
     # ax.axis('equal')
     ax.axis('square')
-    ax.set_xlim(left=0, right=1200)
-    ax.set_ylim(bottom=0, top=1200)
+    # ax.set_xlim(left=0, right=1200)
+    # ax.set_ylim(bottom=0, top=1200)
     ax.set_ylabel(r'$-Im(Z) [{}]$'.format(K_OHM))
     ax.set_xlabel(r'$Re(Z) [{}]$'.format(K_OHM))
     ax.ticklabel_format(style='sci', scilimits=(-3, 4), axis='both')
@@ -138,9 +159,19 @@ def cole(data, temp_list, step=None, time=[], start=0, end=None, fit=False, **kw
     # cb = fig.colorbar(p, ax=ax, orientation="horizontal")
     cb = fig.colorbar(p, ax=ax)
     cb.set_label('Frequency')
-    # cb.ax.invert_xaxis()
-
+    cb.ax.invert_xaxis()
     plt.show()
+
+    if fit:
+        return resistance
+
+    # for _, row in data.iterrows():
+    #     Tval = round(row.temp)
+    #     Re, Im = processing.get_Re_Im(row.z[start:end], row.theta[start:end])
+    #     p = ax.scatter(Re/1000, Im/1000, c=FREQ[start:end], norm=colors.LogNorm())
+    #     l = ax.plot(Re/1000, Im/1000, 'b')
+    #     if fit:
+    #         processing.circle_fit(Re, Im, ax)
 
 def gas(data, step=None, time=[]):
     "Plots mass_flow data for all gases versus time elapsed"
@@ -215,33 +246,44 @@ def imp_diameter(data, step=None, time=[]):
 
     plt.show()
 
-def arrhenius(data, freq=None, circuit=None):
+def arrhenius(data, temp_list=None, ax=None, fmt='o'):
     """Plots inverse temperature versus conductivity"""
-    fig, ax = plt.subplots(1)
-    if freq:
-        Re,_,freq = impedance_at(data,freq)
-        ax.plot(10000/data.kelvin, np.log10(1/Re*GEO_FACTOR), 'b')
-        ax.plot(10000/data.kelvin, np.log10(1/Re*GEO_FACTOR), 'rx')
-    elif circuit:
+
+    def calculate(row):
+        f, z = pp.cropFrequencies(FREQ, row.complex_z, 200)
+        f, z = pp.ignoreBelowX(f, z)
         circuit = 'p(R1,C1)-p(R2,C2)'
-        C = 1e-10
-        guess = [5e+4, C, 1e+6, C]
-        complex_z = modelling.to_complex_z(z,theta)
-        model = modelling.model_impedance(circuit,guess,FREQ)
+        guess = [5e+4, 1e-10, 5e+6, 1e-10]
+        model = modelling.model_impedance(circuit,guess,f, z)
+        return modelling.get_resistance(model)
+
+    resistance = []
+    temp_out = []
+    if temp_list:
+        for temp in temp_list:
+            [index, _] = index_temp(data.temp,temp)
+            row = data.iloc[index]
+            resistance.append(calculate(row))
+            temp_out.append(row.kelvin)
     else:
-        raise ValueError('Must specify either a freq or circuit string for modelling conductivity')
+        for _, row in data.iterrows():
+            resistance.append(calculate(row))
+            temp_out.append(row.kelvin)
 
+    conductivity = 1 / (np.array(resistance) * GEO_FACTOR)
 
+    ax.plot(10000/np.array(temp_out),np.log10(conductivity),fmt)
+    # ax.plot(np.array(temp_out),np.log10(conductivity),fmt)
+    # ax.semilogy(10000/np.array(temp_out),conductivity,fmt)
 
-
-    ax.set_ylabel('Conductivity [S/m]')
-    ax.set_xlabel('10000/Temperature [K]')
-
-    secax = ax.secondary_xaxis('top', functions=(inverseK2celsius, celsius2inverseK))
-    secax.set_xlabel(r'$Temperature [^\circ C]$')
-    ax.tick_params(direction='in')
-    ax.add_artist(AnchoredText('@{} Hz'.format(freq), loc=1))
-    plt.show()
+    # prevents redrawing axes, only really required for the second axes because multiple calls will redraw over itself
+    if not ax.xaxis.get_label().get_text():
+        ax.set_ylabel('Log10 Conductivity [S/m]')
+        ax.set_xlabel('10000/Temperature [K]')
+        secax = ax.secondary_xaxis('top', functions=(inverseK2celsius, celsius2inverseK))
+        secax.set_xlabel(r'$Temperature [^\circ C]$')
+        ax.tick_params(direction='in')
+    plt.draw()
 
 def bode(z, theta, freq=FREQ):
     fig, ax1 = plt.subplots(1)
@@ -261,12 +303,14 @@ def bode(z, theta, freq=FREQ):
     fig.tight_layout()
     plt.show()
 
-def cond_fugacity(data,freq):
+def cond_fugacity(data, temp_list=None, ax=None, fmt='o'):
     """Plots inverse temperature versus conductivity"""
     fig = plt.figure()
     ax = fig.add_subplot(111)
 
     Re,_,freq = impedance_at(data,freq)
+
+
 
     ax.semilogy(data.fugacity, 1/Re*GEO_FACTOR, 'b-', label='fugacity')
 
@@ -326,6 +370,7 @@ def overlay_steps(ax,data):
     steps = data.step.unique()
 
     print(np.searchsorted(data.step,steps))
+
 
 class LivePlot1():
 

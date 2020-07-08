@@ -1,5 +1,5 @@
 from impedance import preprocessing as pp
-from impedance.models.circuits import CustomCircuit, Randles
+from impedance.models.circuits import CustomCircuit, Randles, fitting
 from impedance.visualization import plot_nyquist, plot_bode
 # from impedance import fitting
 import numpy as np
@@ -18,6 +18,7 @@ def model_impedance(circuit, guess, freq, impedance, name='circuit'):
         initial_guess=guess
         )
     model.fit(freq, impedance, method='lm', bounds=(-np.inf, np.inf))
+    # print(repr(model.predict(np.geomspace(0.001,2e6,100),True)))
     return model
 
 def get_resistance(model):

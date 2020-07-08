@@ -186,7 +186,7 @@ def leastsq_circle(x, y):
 
 def get_Re_Im(Z, theta):
     Re = np.multiply(Z, np.cos(theta))
-    Im = np.absolute(np.multiply(Z, np.sin(theta)))
+    Im = np.multiply(Z, np.sin(theta))
     return Re, Im
 
 def fit_impedance(data, offset=0, method='lsq'):
@@ -255,6 +255,10 @@ def actual_fugacity(data):
     popt2 = optimize.curve_fit(parabola, r, fugacity_list)[0]
     return parabola(ratio, *popt2)
 
+def to_complex_z(data):
+    Re, Im = get_Re_Im(data.z, data.theta)
+    return Re + 1j*Im
+
 def process_data(data, sample_area, sample_thickness):
     if isinstance(data, list):
         data = pd.DataFrame(data)
@@ -271,6 +275,7 @@ def process_data(data, sample_area, sample_thickness):
     data['temp'] = data[['thermo_1','thermo_2']].mean(axis=1)
     data['kelvin'] = data.temp+273.18
     data['actual_fugacity'] = data.apply(lambda x: actual_fugacity(x), axis=1)
+    data['complex_z'] = data.apply(lambda x: to_complex_z(x), axis=1)
     # data['resistance'] = data.apply(lambda x: fit_impedance(x,offset=5), axis=1)
 
     # if sample_area and sample_thickness:
