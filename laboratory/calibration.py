@@ -108,6 +108,19 @@ def plot_temperature_profile():
     plt.show()
 
 
+def gradient_profile():
+    calibration_file = os.path.join(config.CALIBRATION_DIR, 'furnace_profile.pkl')
+    try:
+        f = open(calibration_file, 'rb')  # Overwrites any existing file.
+    except FileNotFoundError:
+        logger.warning(
+            'WARNING: The linear stage requires calibration in order to find the position where both thermocouples sit at the peak temperature.')
+    else:
+        data = pickle.load(f)
+        f.close()
+        return data.thermo_1 - data.thermo_2
+
+
 def find_indicated(temperature):
     calibration_file = os.path.join(
         config.CALIBRATION_DIR, "open_furnace_correction.pkl")
