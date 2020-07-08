@@ -7,6 +7,7 @@ import os
 import pickle
 from functools import wraps
 import numpy as np
+from datetime import timedelta
 
 from serial.tools import list_ports
 import minimalmodbus
@@ -526,7 +527,7 @@ class Furnace(minimalmodbus.Instrument):
         """
         return self._command(selection, address, 'current setpoint', {'setpoint_1': 0, 'setpoint_2': 1})
 
-    def timer_duration(self, minutes=0, seconds=0, address=324):
+    def timer_duration(self, hours=0, minutes=0, seconds=0, address=324):
         """Sets the length of the timer.
 
         :param minutes: number of minutes
@@ -535,13 +536,13 @@ class Furnace(minimalmodbus.Instrument):
         :param seconds: number of seconds
         :type timer_type: int,float (floats internally converted to int)
         """
-        total_seconds = minutes*60+int(seconds)
-        if total_seconds > 99*60+59:
+        td = timedelta(hours=hours, minutes=minutes, seconds=seconds)
+        if td.total_seconds() > 99*60+59:
             logger.info(
                 "Can't set timer to more than 100 minutes at the current resolution")
             return False
         else:
-            return self._command(total_seconds, address, 'timer duration')
+            return self._command(td.total_seconds(), address, 'timer duration')
 
     def timer_end_type(self, selection=None, address=328):
         """Determines the behavior of the timer. The default configuration in this program is to dwell. If selection is specified, the timer end type will be set accordingly. If no argument is passed, it returns the current end type of the timer.
@@ -732,6 +733,25 @@ class Stage():
     @property
     def position(self):
         return self._read('?X', 'Getting x-position')
+
+
+    def find_gradient_position(self,target_gradient):
+        data = self.get_temp_profile()
+        gradient = np.abs(data.thermo_1 - data.thermo_2)
+        idx = (np.abs(gradient-target_gradient)).argmin()
+        return data.position.iloc[idx]
+
+    def get_temp_profile(self):
+        calibration_file = os.path.join(config.CALIBRATION_DIR, 'furnace_profile.pkl')
+        try:
+            f = open(calibration_file, 'rb')  # Overwrites any existing file.
+        except FileNotFoundError:
+            logger.warning(
+                'WARNING: The linear stage requires calibration in order to find the position where both thermocouples sit at the peak temperature.')
+        else:
+            data = pickle.load(f)
+            f.close()
+        return data
 
     def _get_equilibrium_position(self):
         calibration_file = os.path.join(
