@@ -259,6 +259,19 @@ def to_complex_z(data):
     Re, Im = get_Re_Im(data.z, data.theta)
     return Re + 1j*Im
 
+
+def load_data(project_folder):
+    """loads a previous experiment for processing and analysis
+
+    :param project_folder: name of experiment
+    :type project_folder: str
+    """
+    data = pd.read_pickle(
+        glob.glob(os.path.join(project_folder, '*.pkl'))[0])
+
+    # load sample.json and send sample specs to process data function
+    return process_data(data)
+
 def process_data(data, sample_area, sample_thickness):
     if isinstance(data, list):
         data = pd.DataFrame(data)
