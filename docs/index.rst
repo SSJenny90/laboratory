@@ -16,6 +16,7 @@ Electrical Conductivity Laboratory is a program designed to measure the electric
    guide/safety
    guide/SOPs
    guide/calibration
+   guide/documents
    guide/getting_started
    guide/troubleshoot
    
