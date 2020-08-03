@@ -43,10 +43,11 @@ def voltage(data, step=None, time=[], kwargs={}):
 
     fig, ax = plt.subplots()
 
-    ax.plot(data['voltage'], 'rx')
+    # ax.plot(data['voltage'], 'rx')
+    ax.errorbar(data.index, data.voltage, yerr=data.volt_stderr)
+    ax = format_time_axis(ax)
     ax.set_ylabel('Voltage [mV]')
     ax.tick_params(direction='in')
-    ax.set_xlabel('Time Elapsed [hours]')
     plt.show()
 
 def resistance(data, freq, step=None, time=[]):
