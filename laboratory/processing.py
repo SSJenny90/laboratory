@@ -6,6 +6,7 @@ from impedance import preprocessing
 # from impedance.models.circuits
 from impedance import visualization
 import math 
+import os, glob, json
 
 def parabola(x, a, b, c):
     return np.multiply(a, np.square(x)) + np.multiply(b, x) + c
@@ -266,11 +267,15 @@ def load_data(project_folder):
     :param project_folder: name of experiment
     :type project_folder: str
     """
-    data = pd.read_pickle(
-        glob.glob(os.path.join(project_folder, '*.pkl'))[0])
+    data = pd.read_pickle(glob.glob(os.path.join(project_folder, '*.pkl'))[0])
+
+    with open(os.path.join(project_folder, 'sample.json')) as f:
+        sample = json.load(f)
+
+    sample['name']
 
     # load sample.json and send sample specs to process data function
-    return process_data(data)
+    return process_data(data, sample['area'], sample['thickness'])
 
 def process_data(data, sample_area, sample_thickness):
     if isinstance(data, list):
