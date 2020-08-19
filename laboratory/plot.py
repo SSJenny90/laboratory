@@ -37,16 +37,22 @@ def index_data(data, step, time):
 
     return data
 
-def voltage(data, step=None, time=[], kwargs={}):
+def voltage(data, step=None, bars=False, time=[], kwargs={}):
     """Plots voltage versus time"""
     data = index_data(data,step,time)
 
     fig, ax = plt.subplots()
 
     # ax.plot(data['voltage'], 'rx')
-    ax.errorbar(data.index, data.voltage, yerr=data.volt_stderr)
+    if bars:
+        ax.errorbar(data.index, data.voltage, yerr=data.volt_stderr,fmt='.')
+    # else:
+    p = ax.scatter(data.index, data.voltage, c=data.temp)
+    cb = fig.colorbar(p, ax=ax)
+    cb.set_label('Temperature [degC]')
+        # ax.plot(data.index, data.voltage,'.')
     ax = format_time_axis(ax)
-    ax.set_ylabel('Voltage [mV]')
+    ax.set_ylabel('Voltage [microV]')
     ax.tick_params(direction='in')
     plt.show()
 
@@ -90,7 +96,7 @@ def conductivity(data, temp_list=None, ax=None, fmt='o'):
     else:
         for _, row in data.iterrows():
             resistance.append(calculate(row))
-            temp_out.append(row.wkelvin)
+            temp_out.append(row.kelvin)
 
     conductivity = 1 / (np.array(resistance) * GEO_FACTOR)
 
@@ -250,6 +256,10 @@ def imp_diameter(data, step=None, time=[]):
 def arrhenius(data, temp_list=None, ax=None, fmt='o'):
     """Plots inverse temperature versus conductivity"""
 
+
+    if ax is None:
+        fig, ax = plt.subplots()
+
     def calculate(row):
         f, z = pp.cropFrequencies(FREQ, row.complex_z, 200)
         f, z = pp.ignoreBelowX(f, z)
@@ -285,6 +295,9 @@ def arrhenius(data, temp_list=None, ax=None, fmt='o'):
         secax.set_xlabel(r'$Temperature [^\circ C]$')
         ax.tick_params(direction='in')
     plt.draw()
+
+
+    return fig, ax
 
 def bode(z, theta, freq=FREQ):
     fig, ax1 = plt.subplots(1)
