@@ -2,40 +2,61 @@
 # -*- coding: utf-8 -*-
 import math
 import time
-
+import statsmodels.api as sm
+from functools import wraps
+from cycler import cycler
 import numpy as np
 import pandas as pd
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 from laboratory import config, processing, modelling
+from laboratory.processing import Sample
 from matplotlib.offsetbox import AnchoredText
 import matplotlib.dates as mdates
+from matplotlib.pyplot import cm
 from impedance import preprocessing as pp
 from datetime import datetime as dt
 from impedance.models.circuits import fitting
-# plt.style.use('seaborn-darkgrid')
-
+plt.style.use('ggplot')
 plt.ion()
-FREQ = np.around(np.geomspace(20, 2000000, 50))
+color_cycle = cycler(color=cm.tab20(np.linspace(0,1,20)))
+
 K_OHM = r'k\Omega'
-GEO_FACTOR =  97.686e-6 / 2.6e-3
+degC = r'$^\degree$C'
+CONDUCTIVITY = r'$Conductivity~[S/m]$'
+THERMOPOWER = r'$Thermopower~[\mu V/K]$'
+TEMP_C = r'$Temperature~[\degree C]$'
+TEMP_K = r'$Temperature~[\degree K]$'
+FUGACITY = r'$fo2p~[log Pa]$'
+RESISTIVITY = r'$Resistivity [\omega m^-1]$'
+
+def plot(func):
+    @wraps(func)
+    def wrapper(data,*args,**kwargs):
+        if isinstance(data, Sample):
+            sample = data
+            data = sample.data
+        else:
+            sample=None
+
+        if not kwargs.get('ax'):
+            _, ax = plt.subplots()
+            # _, ax = plt.subplots(subplot_kw=kwargs)
+            kwargs['ax'] = ax
+
+        return func(data, *args,**kwargs)
+    return wrapper
+
+def thermopower_only(data):
+    return data[data.z.isnull()]
+
+def conductivity_only(data):
+    return data[data.z.notnull()]
 
 def index_temp(T, Tx):
     # returns the index of T nearest to the specified temp Tx. For use in colecole plots
     index = np.abs(T - Tx).argmin()
     return [index, T.to_numpy().flat[index]]
-
-def index_freq(F):
-    index = np.abs(FREQ - F).argmin()
-    return [index, FREQ.flat[index]]
-
-def index_data(data, step, time):
-    if step is not None:
-        data = data.loc[data.step == step]
-    if time:
-        data = data[time[0]:time[1]]
-
-    return data
 
 def voltage(data, step=None, bars=False, time=[], kwargs={}):
     """Plots voltage versus time"""
@@ -76,6 +97,9 @@ def resistance(data, freq, step=None, time=[]):
 
 def conductivity(data, temp_list=None, ax=None, fmt='o'):
 
+    if ax is None:
+        fig, ax = plt.subplots()
+
     def calculate(row):
       f, z = pp.cropFrequencies(FREQ, row.complex_z, 200)
       f, z = pp.ignoreBelowX(f, z)
@@ -106,80 +130,365 @@ def conductivity(data, temp_list=None, ax=None, fmt='o'):
 
     ax.tick_params(direction='in')
 
-def temperature(data, step=None, time=[], kwargs={}):
-    """Plots furnace indicated and target temperature, thermocouple temperature and thermistor data versus time elapsed. A dictionary of key word arguments may be passed through to customize this plot"""
-    data = index_data(data,step,time)
+def fugacity_target(data,ax=None, **kwargs):
+    if ax is None:
+        fig, ax = plt.subplots()
 
-    fig, ax = plt.subplots()
-    ax.plot(data['thermo_1'], '.', label='Te1')
-    ax.plot(data['thermo_2'], '.', label='Te2')
-    ax.step(data['target'], 'y', linestyle='--', label='Target temperature')
-    # ax.plot(data['indicated'], label='Furnace indicated')
+    ax.step(data.time, data['offset'], label='fo2 buffer',**kwargs)
+    ax.set_ylabel(data['buffer'].unique()[0] + ' +/- ')
+
+    return ax
+
+@plot
+def temperature(data, ax=None, **kwargs):
+    """Plots furnace indicated and target temperature, thermocouple temperature and thermistor data versus time elapsed. A dictionary of key word arguments may be passed through to customize this plot"""
+
+    ax.plot(data.time, data['temp'], label='Sample temperature',**kwargs)
+
     ax = format_time_axis(ax)
     ax.set_ylabel(r'$Temperature [\circ C]$')
-    ax.tick_params(direction='in')
-    fig.tight_layout()
-    fig.autofmt_xdate()
 
-    ax.legend()
-    plt.show()
+    return ax
 
-def cole(data, temp_list, start=0, end=None, fit=False, **kwargs):
-    """Creates a Cole-Cole plot (imaginary versus real impedance) at a given temperature. Finds the available data to the temperature specified by 'temp'. A linear least squares circle fit can be added by setting fit=True.
+
+# BASE LEVEL PLOTS
+@plot
+def cole(data, freq, temp, freq_min=200, freq_max=None, fit=False, ax=None, **kwargs):
+    """Creates a Cole-Cole plot (imaginary versus real impedance) at a given temperature. Finds the available data closest to the temperature specified by 'temp'. A linear least squares circle fit can be added by setting fit=True.
 
     :param temp: temperature in degrees C
     :type temp: float/int
     """
-    fig, ax = plt.subplots()
-
-    resistance = []
-    for temp in temp_list:
-        [index, Tval] = index_temp(data.temp,temp)
-        z = data.complex_z.iloc[index]
-        f, z = pp.cropFrequencies(FREQ, z, 200)
-        f, z = pp.ignoreBelowX(f, z)
-        p = ax.scatter(np.real(z)/1000, np.abs(np.imag(z))/1000, c=f, norm=colors.LogNorm())
-
-        if fit:   
-            circuit = 'p(R1,C1)-p(R2,C2)'
-            C = 1e-10
-            guess = [5e+4, C, 5e+6, C]
-            model = modelling.model_impedance(circuit,guess,f, z)
-            rmse = fitting.rmse(z, model.predict(f))
-            print(rmse)
-            predicted = model.predict(np.geomspace(0.001,2000000,100))
-            ax.plot(np.real(predicted)/1000, np.abs(np.imag(predicted))/1000, label=r'$@{}^\circ C$'.format(round(Tval)))       
-            resistance.append(modelling.get_resistance(model))
-            ax.add_artist(AnchoredText(circuit, loc=2))
-
-    # ax.axis('equal')
-    ax.axis('square')
-    # ax.set_xlim(left=0, right=1200)
-    # ax.set_ylim(bottom=0, top=1200)
-    ax.set_ylabel(r'$-Im(Z) [{}]$'.format(K_OHM))
-    ax.set_xlabel(r'$Re(Z) [{}]$'.format(K_OHM))
-    ax.ticklabel_format(style='sci', scilimits=(-3, 4), axis='both')
-    ax.set_title('Cole-Cole')
-    ax.legend()
-
-
-    # cb = fig.colorbar(p, ax=ax, orientation="horizontal")
-    cb = fig.colorbar(p, ax=ax)
-    cb.set_label('Frequency')
-    cb.ax.invert_xaxis()
-    plt.show()
+    data = conductivity_only(data)
+    # for temp in temp_list:
+    [index, Tval] = index_temp(data.temp,temp)
+    f, z = pp.cropFrequencies(
+        frequencies=np.array(freq), 
+        Z=data.complex_z.iloc[index], 
+        freqmin=freq_min,
+        freqmax=freq_max)
+    f, z = pp.ignoreBelowX(f, z)
+    p = ax.scatter(np.real(z)/1000, np.abs(np.imag(z))/1000,**kwargs)
 
     if fit:
-        return resistance
+        model = data.model.iloc[index]
+        predicted = model.predict(np.geomspace(0.001,2000000,100))      
+        ax.plot(np.real(predicted)/1000, np.abs(np.imag(predicted))/1000) 
+        ax.add_artist(AnchoredText(model.circuit, loc=2))
 
-    # for _, row in data.iterrows():
-    #     Tval = round(row.temp)
-    #     Re, Im = processing.get_Re_Im(row.z[start:end], row.theta[start:end])
-    #     p = ax.scatter(Re/1000, Im/1000, c=FREQ[start:end], norm=colors.LogNorm())
-    #     l = ax.plot(Re/1000, Im/1000, 'b')
-    #     if fit:
-    #         processing.circle_fit(Re, Im, ax)
 
+    if not ax.xaxis.get_label().get_text():
+        ax.axis('equal')
+        # ax.axis('square')
+        ax.set_xlim(left=0)
+        ax.set_ylim(bottom=0)
+        ax.set_ylabel(r'$-Im(Z) [{}]$'.format(K_OHM))
+        ax.set_xlabel(r'$Re(Z) [{}]$'.format(K_OHM))
+        ax.ticklabel_format(style='sci', scilimits=(-3, 4), axis='both')
+        ax.set_title('Cole-Cole')
+
+    return ax
+
+# @plot
+def arrhenius_base(data, ax=None, **kwargs):
+    """Plots inverse temperature versus conductivity"""
+    ax.plot(10000/(data.temp+273), np.log10(data.conductivity),**kwargs)
+
+    # prevents redrawing axes, only really required for the second axes because multiple calls will redraw over itself
+    if not ax.xaxis.get_label().get_text():
+        ax.set_ylabel(CONDUCTIVITY)
+        ax.set_xlabel('10000/{}'.format(TEMP_K))
+        secax = ax.secondary_xaxis('top', functions=(inverseK2celsius, celsius2inverseK))
+        secax.set_xlabel(TEMP_C)
+        ax.tick_params(direction='in')
+
+    return ax
+
+def conductivity_vs_fugacity(sample, no_hold=True, ax=None):
+    """Plots inverse temperature versus conductivity"""
+    if ax is None:
+        fig, ax = plt.subplots(1)
+    else:
+        fig = ax.get_figure()
+
+    data = sample.data
+ 
+    data = data[data.hold_length == 0]
+
+    p = ax.scatter(
+        data.actual_fugacity, 
+        data.conductivity,
+        c=data.temp)
+
+    ax.set_yscale('log')
+    ax.set_xscale('log')
+
+    cb = fig.colorbar(p, ax=ax)
+    cb.set_label(TEMP_C)
+    ax.set_ylabel(CONDUCTIVITY)
+    ax.set_xlabel(FUGACITY)
+
+    return ax
+
+# @plot
+def thermopower_vs_fugacity(sample, ax=None, **kwargs):
+    if ax is None:
+        fig, ax = plt.subplots(1)
+    else:
+        fig = ax.get_figure()
+
+    data = sample.thermopower
+    data = data[data.hold_length == 0]
+    steps = data.step.unique()
+
+    thermopower, fugacity, temp = [], [], []
+    for step in steps:
+        tmp = data.loc[data.step == step]
+        result = sm.WLS(tmp.voltage, sm.add_constant(tmp.gradient), weights=1./(tmp.volt_stderr ** 2)).fit()
+        slope = result.params['gradient']
+        thermopower.append(-slope)
+        fugacity.append(tmp.actual_fugacity.mean())
+        temp.append(tmp.temp.mean())
+
+    p = ax.scatter(
+        fugacity, 
+        thermopower,
+        c=temp)
+
+    ax.set_xscale('log')
+    cb = fig.colorbar(p, ax=ax)
+    cb.set_label(TEMP_C)
+    ax.set_ylabel(THERMOPOWER)
+    ax.set_xlabel(FUGACITY)
+    return ax
+
+@plot
+def diffusion(data, ax=None,**kwargs):
+    # get only the data where the experiment was required to hold
+    data = data[data.hold_length > 0]
+    grouped = data.groupby('step')
+
+    for _, group in grouped:
+        ax.plot(group.time_elapsed.dt.total_seconds()/60/60,group.conductivity,marker='.',linestyle='')
+    
+    ax.set_yscale('log')
+    ax.set_ylabel(CONDUCTIVITY)
+    ax.set_xlabel('Time elapsed [hours]')
+    # ax.set_title('Conductivity during gas mix changes')
+    return ax
+
+@plot
+def thermopower(data, ax=None,**kwargs):
+    data = thermopower_only(data)
+    steps = data.step.unique()
+    colors = ['r','b','g','c','m','y','k']
+    data['gradient'] = data.thermo_1 - data.thermo_2
+
+    thermopower = []
+    fugacity = []
+    for step, c in zip(steps,color_cycle):
+        tmp = data.loc[data.step == step]
+        result = sm.WLS(tmp.voltage, sm.add_constant(tmp.gradient), weights=1./(tmp.volt_stderr ** 2)).fit()
+        slope = result.params['gradient']
+        thermopower.append(-slope)
+        fugacity.append(tmp.actual_fugacity.mean())
+        # ax = voltage_vs_gradient(tmp, ax=ax, **c)
+    ax.plot(fugacity, thermopower,'rx')
+    ax.set_xscale('log')
+
+    return thermopower
+
+@plot
+def voltage_vs_gradient(data, ax=None, **kwargs):
+    """Plots a voltage versus thermal gradient for a single suite of thermopower measurements. A weighted least squares fit is applied to the data to determine the slope for thermopower calculations.
+
+    Args:
+        data ([type]): [description]
+        ax ([type], optional): [description]. Defaults to None.
+
+    Returns:
+        ax: The figure axis.
+        model: The WLS model object.
+
+    Notes
+    -----
+    Thermopower is determined by the slope of a weighted least squares fit to the data:
+
+    .. math:: Q = -\lim_{\Delta T \to 0} \Delta V / \Delta T
+    """
+    data = thermopower_only(data)
+
+    volt = data.voltage
+    data['gradient'] = (data.thermo_1 - data.thermo_2)
+    ax.errorbar(data.gradient, volt, yerr=data.volt_stderr, fmt='.',**kwargs)
+    model = sm.WLS(volt, sm.add_constant(data.gradient), weights=1./(data.volt_stderr ** 2)).fit()
+    ax.plot(data.gradient,model.predict(),**kwargs)
+    ax.set_title('Thermopower @ {temp:.0f}{units} [{run}]'.format(
+        temp=data.temp.mean(),
+        units=degC,
+        run=data['run'].unique()[0]))
+
+    ax.set_ylabel('Voltage [micro V]')
+    ax.set_xlabel(r'$Gradient [\circ C]$')
+    # ax.legend()
+    return ax, model
+
+# HIGHER LEVEL PLOTS
+@plot
+def experiment_overview(data,ax=None):
+    """Generatre a plot showing displaying mean temperature over time on one axis and the target fo2 buffer on the other axis.
+
+    Args:
+        sample (a Sample instance): [description]
+
+    Returns:
+        left_ax, right_ax: [description]
+    """
+
+    c = 'tab:red'
+    ax = temperature(data,ax=ax, color=c)
+    ax.set_ylabel(r'$Temperature [\circ C]$',color=c)
+    ax.tick_params(axis='y', labelcolor=c)
+    ax = format_time_axis(ax)
+
+    c = 'tab:blue'
+    ax2 = ax.twinx()  # instantiate a second axes that shares the same x-axis
+    ax2 = fugacity_target(data,ax=ax2, color=c)
+    ax2.tick_params(axis='y', labelcolor=c)
+    ax2.set_ylabel(data['buffer'].unique()[0] + ' +/- ',color=c)
+    ax2 = format_time_axis(ax)
+
+    # fig.set_size_inches(10, 5)
+
+    return ax, ax2
+
+def cole_at_temp(sample, temp, ax=None, **kwargs):
+    freq = sample.freq
+    data = sample.data
+
+    for i, run in enumerate(data.run.unique().dropna()):
+        tmp = data[data.run == run]
+        kwargs = dict(  
+            data=tmp, 
+            freq=freq, 
+            temp=temp,
+            fit=True,
+            label='{}{:+}'.format(tmp.buffer.unique()[0],tmp.offset.mode()[0]))
+        if i != 0 or ax is not None:
+            kwargs.update(ax=ax)
+        ax = cole(**kwargs)
+
+    ax.set_title('{} @ {}{}'.format(
+        sample.name.title(),
+        temp,
+        degC))
+    ax.legend()
+    return ax
+
+def cole_at_run(sample, run, temp_list, ax=None, **kwargs):
+    """Creates a Cole-cole plot for a given temperature run at the temperatures specified in temp_list.
+
+    Args:
+        sample (Sample): the sample to be plotted
+        run (int): An integer number specifying the temperature run to plot from.           
+        temp_list (list): A list of temperatures from which to plot and model impedance spectra
+        ax (pyplot.Axes, optional): A pyplot figure axes object. If none, an axes will be created automatically. Defaults to None.
+
+    Returns:
+        ax: The figure axes
+    """
+    freq = sample.freq
+    data = sample.run(run)
+
+    for i, temp in enumerate(temp_list):
+        kwargs = dict(  
+            data=data, 
+            freq=freq, 
+            temp=temp,
+            fit=True,
+            label='{} {}'.format(temp,degC))
+        if i != 0 or ax is not None:
+            kwargs.update(ax=ax)
+        ax = cole(**kwargs)
+         
+    buffer = '{}{:+}'.format(data.buffer.unique()[0],data.offset.mode()[0])
+    ax.set_title('{} - {} [{}]'.format(
+        sample.name.title(),
+        data.run.unique()[0],
+        buffer))
+    ax.legend()
+    return ax
+
+@plot
+def thermopower_base(data, ax=None):
+    """Plots each temperature cycle for a given experiment on an arrhenius plot using different colours. Uses different symbols for heating and cooling to highlight possible sample alteration during a temperature cycle.
+
+    ::note
+        I don't believe this is actually hysteresis but can't be arsed finding the proper term.
+
+    Args:
+        sample (processing.Sample): a given sample
+
+    Returns:
+        [type]: [description]
+    """
+    steps = data.step.unique()
+    colors = ['r','b','g','c','m','y','k']
+
+    for step, c in zip(steps,color_cycle):
+        print(c)
+
+        tmp = data.loc[data.step == step]
+        ax, _ = voltage_vs_gradient(tmp, ax=ax, **c)
+        # print(model.summary())
+
+    # ax.set_title('Thermopower @ {temp:.0f}{units} [{run}]'.format(
+    #     temp=data.temp.mean(),
+    #     units=degC,
+    #     run=data['run'].unique()[0]))
+
+    ax.set_ylabel('Voltage [micro V]')
+    ax.set_xlabel(r'$Gradient [\circ C]$')
+    # ax.legend()
+    return ax
+
+@plot
+def arrhenius(data, cycle='both', ax=None):
+    """Plots each temperature cycle for a given experiment on an arrhenius plot using different colours. Uses different symbols for heating and cooling to highlight possible sample alteration during a temperature cycle.
+
+    ::note
+        I don't believe this is actually hysteresis but can't be arsed finding the proper term.
+
+    Args:
+        sample (processing.Sample): a given sample
+
+    Returns:
+        [type]: [description]
+    """
+    data = conductivity_only(data)
+    data = data[data.hold_length == 0]
+    for ind, c in zip(data['run'].unique(),color_cycle):
+        run = data.loc[data.run == ind]
+        mean = int(np.mean([run.step.max(),run.step.min()]))
+
+        if cycle in ['both','increasing']:
+            arrhenius_base(run.loc[run.step <= mean], 
+                ax=ax, 
+                **c, 
+                marker='.',
+                label='{} increasing'.format(ind))
+        if cycle in ['both','decreasing']:
+            arrhenius_base(run.loc[run.step > mean], 
+                ax=ax, 
+                **c, 
+                marker='x',
+                label='{} decreasing'.format(ind))
+
+    ax.legend()
+    return ax
+
+
+# LAB LEVEL PLOTS
 def gas(data, step=None, time=[]):
     "Plots mass_flow data for all gases versus time elapsed"
 
@@ -237,69 +546,7 @@ def fugacity_time(data, freq, step=None, time=[]):
     fig.tight_layout()
     plt.show()
 
-def imp_diameter(data, step=None, time=[]):
-    """Plots the impedance diameter against time_elapsed"""
-
-    data = index_data(data,step,time)
-
-    # data['diameter'] = [processing.fit_impedance(z[5:], theta[5:])
-                        # for z, theta in zip(data.z, data.theta)]
-
-    fig, ax = plt.subplots()
-    ax.plot(data['resistance'], 'r')
-    ax = format_time_axis(ax)
-    ax.set_ylabel(r'$Diameter [\Omega$]')
-    fig.autofmt_xdate()
-
-    plt.show()
-
-def arrhenius(data, temp_list=None, ax=None, fmt='o'):
-    """Plots inverse temperature versus conductivity"""
-
-
-    if ax is None:
-        fig, ax = plt.subplots()
-
-    def calculate(row):
-        f, z = pp.cropFrequencies(FREQ, row.complex_z, 200)
-        f, z = pp.ignoreBelowX(f, z)
-        circuit = 'p(R1,C1)-p(R2,C2)'
-        guess = [5e+4, 1e-10, 5e+6, 1e-10]
-        model = modelling.model_impedance(circuit,guess,f, z)
-        return modelling.get_resistance(model)
-
-    resistance = []
-    temp_out = []
-    if temp_list:
-        for temp in temp_list:
-            [index, _] = index_temp(data.temp,temp)
-            row = data.iloc[index]
-            resistance.append(calculate(row))
-            temp_out.append(row.kelvin)
-    else:
-        for _, row in data.iterrows():
-            resistance.append(calculate(row))
-            temp_out.append(row.kelvin)
-
-    conductivity = 1 / (np.array(resistance) * GEO_FACTOR)
-
-    ax.plot(10000/np.array(temp_out),np.log10(conductivity),fmt)
-    # ax.plot(np.array(temp_out),np.log10(conductivity),fmt)
-    # ax.semilogy(10000/np.array(temp_out),conductivity,fmt)
-
-    # prevents redrawing axes, only really required for the second axes because multiple calls will redraw over itself
-    if not ax.xaxis.get_label().get_text():
-        ax.set_ylabel('Log10 Conductivity [S/m]')
-        ax.set_xlabel('10000/Temperature [K]')
-        secax = ax.secondary_xaxis('top', functions=(inverseK2celsius, celsius2inverseK))
-        secax.set_xlabel(r'$Temperature [^\circ C]$')
-        ax.tick_params(direction='in')
-    plt.draw()
-
-
-    return fig, ax
-
-def bode(z, theta, freq=FREQ):
+def bode(z, theta, freq=None):
     fig, ax1 = plt.subplots(1)
 
     color = 'tab:red'
@@ -315,24 +562,6 @@ def bode(z, theta, freq=FREQ):
     ax2.semilogx(freq, np.degrees(theta), 'o', color=color)
     ax2.tick_params(axis='y', labelcolor=color)
     fig.tight_layout()
-    plt.show()
-
-def cond_fugacity(data, temp_list=None, ax=None, fmt='o'):
-    """Plots inverse temperature versus conductivity"""
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-
-    Re,_,freq = impedance_at(data,freq)
-
-
-
-    ax.semilogy(data.fugacity, 1/Re*GEO_FACTOR, 'b-', label='fugacity')
-
-    ax.add_artist(AnchoredText('@{} Hz'.format(freq), loc=1))
-    ax.set_ylabel('Conductivity [S/m]')
-    ax.set_xlabel('Fugacity [Pa]')
-    ax.tick_params(direction='in')
-    ax.invert_xaxis()
     plt.show()
 
 def impedance_at(data,freq):
@@ -385,6 +614,19 @@ def overlay_steps(ax,data):
 
     print(np.searchsorted(data.step,steps))
 
+def fugacity_accuracy(sample):
+    fig, ax = plt.subplots()
+
+    data = sample.data
+
+    actual_ratio = data.co2 / data.co
+
+    ax.plot(data.ratio - actual_ratio,'rx')
+
+    return ax
+
+def test(sample):
+    print('Hello')
 
 class LivePlot1():
 
