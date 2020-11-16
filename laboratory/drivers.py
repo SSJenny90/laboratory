@@ -11,7 +11,7 @@ from datetime import timedelta
 
 from serial.tools import list_ports
 import minimalmodbus
-import visa
+import pyvisa as visa
 from alicat import FlowController, FlowMeter
 from laboratory import config, processing
 from laboratory.utils import loggers
