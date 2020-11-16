@@ -62,12 +62,12 @@ class Laboratory():
         return processing.process_data(data, 97.686, 2.6)
         # return processing.process_data(data)
 
-    def restart_from_backup(self):
-        """
-        TODO - reload an aborted experiment and pick up where it left off
-        """
-        # load the pickle file
-        return
+
+    def header(self, step, i):
+        print('Estimated finish: {}'.format(datetime.strftime(
+                datetime.now() + step.hold_length, '%H:%M %A, %b %d')))
+        logger.info('Step {}:\n'.format(i+1))
+        self.display_controlfile(self.controlfile.iloc[[i]])
 
     def reconnect(self):
         """Attempts to reconnect to any instruments that have been disconnected"""
@@ -86,7 +86,6 @@ class Laboratory():
     def shutdown(self):
         """Returns the furnace to a safe temperature and closes ports to both the DAQ and LCR. (TODO need to close ports to stage and furnace)
         """
-        # TODO save some information about where to start the next file
         logger.critical("Shutting down the lab...")
         self.furnace.shutdown()
         self.daq.shutdown()
@@ -145,12 +144,8 @@ class Experiment(Laboratory):
             'thickness': None,
         }
 
-    def run(self, step=None):
-        """Being a new experiment defined by the instructions in controlfile.
-
-        Args:
-            controlfile (str, optional): Path to controlfile containing step by step instructions for the experiment.
-        """
+    def run(self):
+        """Being a new experiment defined by the instructions in controlfile."""
         if not self.project_name:
             raise SetupError('You must specify a project name before beginning an experiment.')
         if not self.control_file:
@@ -310,8 +305,9 @@ class Experiment(Laboratory):
             :type pressure: str
             """
         self.update_progress_bar('Calculating required gas mix')  
-        log_fugacity, ratio = self.gas.set_to_buffer(buffer=step.buffer,
-                                offset=step.offset,
+        log_fugacity, ratio = self.gas.set_to_buffer( 
+                                buffer=step.buffer,
+                                offset= step.offset,
                                 temp=self.mean_temp, 
                                 gas_type=step.fo2_gas)
 
@@ -619,12 +615,4 @@ class Experiment(Laboratory):
         print(controlfile.to_string(columns=column_names,
                                     header=column_alias, index=False) + '\n')
 
-    def _print_step(self, step):
-        print('================')
-
-
-
-        print('================')
-
-        pass
 

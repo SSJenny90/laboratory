@@ -6,6 +6,7 @@ from impedance import preprocessing
 # from impedance.models.circuits
 from impedance import visualization
 import math 
+import os, glob, json
 
 def parabola(x, a, b, c):
     return np.multiply(a, np.square(x)) + np.multiply(b, x) + c
@@ -258,6 +259,23 @@ def actual_fugacity(data):
 def to_complex_z(data):
     Re, Im = get_Re_Im(data.z, data.theta)
     return Re + 1j*Im
+
+
+def load_data(project_folder):
+    """loads a previous experiment for processing and analysis
+
+    :param project_folder: name of experiment
+    :type project_folder: str
+    """
+    data = pd.read_pickle(glob.glob(os.path.join(project_folder, '*.pkl'))[0])
+
+    with open(os.path.join(project_folder, 'sample.json')) as f:
+        sample = json.load(f)
+
+    sample['name']
+
+    # load sample.json and send sample specs to process data function
+    return process_data(data, sample['area'], sample['thickness'])
 
 def process_data(data, sample_area, sample_thickness):
     if isinstance(data, list):

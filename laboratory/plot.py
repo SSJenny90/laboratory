@@ -37,7 +37,7 @@ def index_data(data, step, time):
 
     return data
 
-def voltage(data, step=None, time=[], kwargs={}):
+def voltage(data, step=None, bars=False, time=[], kwargs={}):
     """Plots voltage versus time"""
     data = index_data(data,step,time)
     fig, ax1 = plt.subplots(1)
@@ -47,22 +47,17 @@ def voltage(data, step=None, time=[], kwargs={}):
     # ax1.plot(data.x_position,color=color,)
     # ax1.tick_params(axis='y', labelcolor=color)
 
-    color = 'tab:red'
-    ax1.set_ylabel(r'$\delta T [C]$', color=color)
-    ax1.plot(data.gradient,color=color,)
-    ax1.tick_params(axis='y', labelcolor=color)
-
-
-    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
-
-    color = 'tab:blue'
-    ax2.set_ylabel(r'$Voltage [ \mu V ]$',color=color)
-    ax2.errorbar(data.index,data.voltage,yerr=data.volt_stderr, fmt='.', color=color)
-    # ax2.plot(data.voltage, '+', color=color)
-    ax2.tick_params(axis='y', labelcolor=color)
-    ylim = max(data.voltage.max(), abs(data.voltage.min())) + 0.5
-    ax2.set_ylim([-ylim,ylim])
-    fig.tight_layout()
+    # ax.plot(data['voltage'], 'rx')
+    if bars:
+        ax.errorbar(data.index, data.voltage, yerr=data.volt_stderr,fmt='.')
+    # else:
+    p = ax.scatter(data.index, data.voltage, c=data.temp)
+    cb = fig.colorbar(p, ax=ax)
+    cb.set_label('Temperature [degC]')
+        # ax.plot(data.index, data.voltage,'.')
+    ax = format_time_axis(ax)
+    ax.set_ylabel('Voltage [microV]')
+    ax.tick_params(direction='in')
     plt.show()
 
 def resistance(data, freq, step=None, time=[]):
@@ -105,7 +100,7 @@ def conductivity(data, temp_list=None, ax=None, fmt='o'):
     else:
         for _, row in data.iterrows():
             resistance.append(calculate(row))
-            temp_out.append(row.wkelvin)
+            temp_out.append(row.kelvin)
 
     conductivity = 1 / (np.array(resistance) * GEO_FACTOR)
 
@@ -286,6 +281,10 @@ def imp_diameter(data, step=None, time=[]):
 def arrhenius(data, temp_list=None, ax=None, fmt='o'):
     """Plots inverse temperature versus conductivity"""
 
+
+    if ax is None:
+        fig, ax = plt.subplots()
+
     def calculate(row):
         f, z = pp.cropFrequencies(FREQ, row.complex_z, 200)
         f, z = pp.ignoreBelowX(f, z)
@@ -321,6 +320,9 @@ def arrhenius(data, temp_list=None, ax=None, fmt='o'):
         secax.set_xlabel(r'$Temperature [^\circ C]$')
         ax.tick_params(direction='in')
     plt.draw()
+
+
+    return fig, ax
 
 def bode(z, theta, freq=FREQ):
     fig, ax1 = plt.subplots(1)
