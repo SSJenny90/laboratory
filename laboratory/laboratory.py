@@ -3,6 +3,8 @@ import os
 import time
 from datetime import datetime, timedelta
 import warnings
+from collections import defaultdict
+import json
 
 import numpy as np
 import pandas as pd
@@ -25,10 +27,11 @@ class Laboratory():
     def __init__(self, project_name=None, debug=False):
         self._debug = debug
         self.debug = config.DEBUG
-        if project_name:
-            self.load_data(os.path.join(config.DATA_DIR, project_name))
-        else:
-            self.load_instruments()
+        self.lcr, self.daq, self.gas, self.furnace, self.stage = [None]*5
+        # if project_name:
+        #     self.load_data(os.path.join(config.DATA_DIR, project_name))
+        # else:
+        #     self.load_instruments()
 
     @property
     def debug(self):
@@ -66,24 +69,6 @@ class Laboratory():
         # load the pickle file
         return
 
-    def header(self, step, i):
-        print('Estimated finish: {}'.format(datetime.strftime(
-                datetime.now() + step.hold_length, '%H:%M %A, %b %d')))
-
-        logger.info('Step {}:\n'.format(i+1))
-
-        # print('======================')
-
-        # print('Step {}\n',step[
-        #     ['target_temp','hold_length','heating_rate','buffer']
-        #     ])
-
-
-        # print('======================')
-
-        self.display_controlfile(self.controlfile.iloc[[i]])
-        # logger.info(finish_time)
-
     def reconnect(self):
         """Attempts to reconnect to any instruments that have been disconnected"""
         drivers.reconnect(self)
@@ -98,7 +83,7 @@ class Laboratory():
         self.lcr, self.daq, self.gas, self.furnace, self.stage = drivers.connect()
         print('')
 
-    def shut_down(self):
+    def shutdown(self):
         """Returns the furnace to a safe temperature and closes ports to both the DAQ and LCR. (TODO need to close ports to stage and furnace)
         """
         # TODO save some information about where to start the next file
@@ -155,8 +140,10 @@ class Experiment(Laboratory):
         self.settings = {}
         self.project_name = ''
         self.control_file = ''
-        self.sample_area = None
-        self.sample_thickness = None
+        self.sample = {
+            'area':None,
+            'thickness': None,
+        }
 
     def run(self, step=None):
         """Being a new experiment defined by the instructions in controlfile.
@@ -170,73 +157,81 @@ class Experiment(Laboratory):
             raise SetupError('No control file has been selected.')
 
         self.project_directory = self._create_directory()
-        self.setup()
+        control_file = self.setup()
         self.data = pd.DataFrame()
         self.plot = plot.LivePlot1()
         self.plot2 = plot.LivePlot2(self.settings['freq'])
 
-        # print(self.settings['freq'])
+        # TEMPORARY ONLY 
+        self.stage.home = 5488
+        self.stage.go_home()
 
         # iterate through control file until finished
-        for i, step in self.controlfile.iterrows():
-            
-            if step.type == 'conductivity':
-            # enter the main measurement loop
-              data = self.measurement_cycle(step, i)
-            elif step.type == 'thermopower':
-              data = self.thermopower_loop(step,i)
+        for i, step in control_file.iterrows():  
+            print('\n',step,'\n')   
 
-            if not data.empty:
-                logger.info('Step {} complete!'.format(i))
-            else:
-                logger.critical('Something wen\'t wrong!')
+            logger.info('Collecting conductivity data:')
+            print('')
+            if not self.measurement_cycle(step, i):
                 break
+            logger.info('Succesfully collected conductivity data!')
 
-        self.shut_down()
+            # if thermopower is not 0 then we want to take thermopower measurements at the end of each step
+            if step.thermopower:
+                logger.info('Collecting thermopower data:')
+                if not self.thermopower_loop(step,i):
+                    break
+                logger.info('Succesfully collected thermopower data!')
+          
+            logger.info('Step {} complete!'.format(i))
 
+
+        self.shutdown()
 
     def thermopower_loop(self, step, i):
-        """ Takes a suite of thermopwoer measurements"""
-        # self.plot2.draw_target_fugacity(step.buffer, [self.controlfile.target_temp.min(), self.controlfile.target_temp.max()])
-        
-        self.header(step, i)
-        self.furnace.timer_duration(hours=4)
+        """ Takes a suite of thermopower measurements"""      
 
-        target_position = self.stage.find_gradient_position(step.gradient)
+        # self.furnace.timer_duration(minutes=99)
+        # self.furnace.reset_timer()
+
+        target_position = self.stage.find_gradient_position(step.thermopower)
         offset = self.stage.home - target_position
         all_steps = np.linspace(target_position,self.stage.home + offset, 20).astype(int)
-        # steps = np.linspace(self.stage.home,target_position,10).astype(int)
-        # more = np.linspace(self.stage.home,opp_target_position,10).astype(int)
-        # all_steps = np.concatenate((steps, more))
 
+        #go to the first position and wait an hour for thermal equilibration
+        self.stage.go_to(all_steps[0])
+        time.sleep(30*60)   
 
-        self.stage.go_to(step)
-        time.sleep(60*60)   #wait an hour to thermally equilibrate for the first measurement
-        start_time = dt.now()
+        sleep = 5
+        start_time = datetime.now()
         data = []
-        for step in all_steps[1:]:
-            self.measurement = dict(
-                step = i,
-                time = datetime.now(),
-                )
+        # self.furnace.timer_duration(minutes=3.5*sleep)
+
+        for x_position in all_steps[1:]:
+            # self.furnace.timer_status('reset')
+            time.sleep(10) #make sure furnace has fully powered down
+
+            self.prepare(i)
             self.get_stage_position()
             self.set_fugacity(step)
             self.get_gas()
+            self.get_thermopower()
 
-            n=10    #take 10 measurements at the current position
-            self.measurement['n_voltages'] = n
-            voltage = []
-            for _ in range(0,n):
-                voltage.append(self.daq.get_voltage()['voltage'])
-                time.sleep(1)
-
-            self.measurement['voltage'] = np.mean(np.array(voltage))
+            # self.measurement['voltage'] = np.mean(np.array(voltage))
             data.append(self.measurement)
-
+            self.update_progress_bar('Complete')
+            
+            # self.furnace.timer_status('run')
+            
             # go to next position
-            self.stage.go_to(step)
+            self.stage.go_to(x_position)
             # sleep for 10 minutes to allow temp to thermally equilibrate
-            time.sleep(10*60)
+            # time.sleep(10*60)
+            time.sleep(sleep*60)
+
+        # return to home position and equilibrate for 1 hour before continuing
+        self.stage.go_home()
+        time.sleep(60*60)   
 
         return self.save_and_export(data, start_time, step, i)
 
@@ -246,16 +241,19 @@ class Experiment(Laboratory):
 
         :param step: a single row from the control file
         """
-        self.header(step, i)
-
         # adjust furnace settings
         self.furnace.heating_rate(step.heat_rate)
         self.furnace.setpoint_1(step.furnace_equivalent)
-        self.furnace.timer_duration(minutes=3.5*step.interval)
+        # self.furnace.timer_duration(minutes=3.5*step.interval)
+        self.stage.go_home()
 
         data = []
         start_time = datetime.now()
         while True:
+            # We need to turn off the furnace during a measurement sweep. It causes a huge amount of current leakage which affects the other measurements
+            # self.furnace.timer_status('reset')
+            # time.sleep(10) #make sure furnace has fully powered down
+
             # get a suite of measurements
             self.prepare(i)
             self.get_stage_position()
@@ -268,18 +266,22 @@ class Experiment(Laboratory):
             self.update_progress_bar('Complete')
             self.update_plots(data)
 
-
-            CountdownTimer(hide=self.debug,minutes=step.interval).start(
-                start_time = self.measurement['time'], 
-                message = 'Next measurement in...')
-                
+            # Turn the furnace back on
+            # self.furnace.timer_status('run')
+            self.centre_stage()
+               
             # check to see if it's time to begin the next loop
             if self.break_cycle(step, self.measurement['indicated'], start_time):
                 return self.save_and_export(data, start_time, step, i)
 
+            CountdownTimer(hide=self.debug,minutes=step.interval).start(
+                start_time = self.measurement['time'], 
+                message = 'Next measurement in...')
+
     def prepare(self,i):
+        now = datetime.now()
         self.measurement = {'step': i}
-        self.measurement['time'] = datetime.now()
+        self.measurement['time'] = now
         self.progress_bar = tqdm(
             total = 6+len(self.settings['freq']),
             bar_format = '{l_bar}{bar}{postfix}',
@@ -308,8 +310,8 @@ class Experiment(Laboratory):
             :type pressure: str
             """
         self.update_progress_bar('Calculating required gas mix')  
-        log_fugacity, ratio = self.gas.set_to_buffer( buffer=step.buffer,
-                                offset= step.offset,
+        log_fugacity, ratio = self.gas.set_to_buffer(buffer=step.buffer,
+                                offset=step.offset,
                                 temp=self.mean_temp, 
                                 gas_type=step.fo2_gas)
 
@@ -356,28 +358,37 @@ class Experiment(Laboratory):
         self.daq.toggle_switch('impedance')
         self.update_progress_bar('Collecting impedance data')
 
-        z, theta = [], []
+        impedance = defaultdict(list)
         for _ in self.settings['freq']:
             self.progress_bar.update(1)
 
             # return a single line for each frequency value
             line = self.lcr.get_complex_impedance()
-            z.append(line['z'])
-            theta.append(line['theta'])
+            impedance['z'].append(line['z'])
+            impedance['theta'].append(line['theta'])
 
-            # # Don't want a dodgy plot call to ruin the experiment
-            # try:
-            # except Exception:
-            #     pass
-
-        results = {'z':z,'theta':theta}
-        self.measurement.update(results)
+        self.measurement.update(impedance)
         self.daq.toggle_switch('thermo')
 
-    def move_stage(self,step):
-
-      pass
-
+    def centre_stage(self):
+        """periodically corrects the stage position to within .5 degrees of equilibrium
+        """
+        gradient = self.measurement['thermo_1'] - self.measurement['thermo_2']
+        move_by = None
+        if gradient > 0.5:
+            if gradient >= 1:
+                move_by = -.2
+            else:
+                move_by = -.1
+        elif gradient < -0.5:
+            if gradient <= -1:
+                move_by = .2
+            else:
+                move_by = .1
+        
+        if move_by is not None:
+            self.stage.move(move_by)
+            self.stage.home = self.stage.position
 
     def update_progress_bar(self,message=None):
         self.progress_bar.set_postfix_str(message)
@@ -391,8 +402,8 @@ class Experiment(Laboratory):
         # dont want plot calls to halt the experiment
 
         try:
-            self.plot.update(data, self.sample_area, self.sample_thickness)
-            self.plot2.update(data, self.sample_area, self.sample_thickness)   
+            self.plot.update(data, self.sample['area'], self.sample['thickness'])
+            self.plot2.update(data, self.sample['area'], self.sample['thickness'])   
         except Exception as e:
             print(e)
             pass
@@ -410,6 +421,14 @@ class Experiment(Laboratory):
         
         if self.settings.get('freq') is None:
             self.set_frequencies()
+        self.sample['freq'] = list(self.settings['freq'])
+
+        # everything is good so lets save a copy to the project folder for safekeeping
+        controlfile.to_csv(os.path.join(self.project_directory,"control_file.csv"))
+
+        # save the sample dimensions
+        with open(os.path.join(self.project_directory,"sample.json"), "w") as f: 
+            json.dump(self.sample, f)
 
         # set up logging file handler
         loggers.file_handler(logger, self.project_name)
@@ -438,7 +457,7 @@ class Experiment(Laboratory):
         controlfile['est_total_mins'] = total_mins.dt.round('s')
 
         self.display_controlfile(controlfile)
-        self.controlfile = controlfile
+        return controlfile
 
     def set_frequencies(self, min_f=config.LCR['min_freq'], max_f=config.LCR['max_freq'], num_freq=50, log_scale=True):
         """Loads an np.array
@@ -471,22 +490,26 @@ class Experiment(Laboratory):
 
         # convert step data to dataframe
         data = pd.DataFrame(data)
+        if data.empty:
+            logger.critical("Something wen't wrong, the dataframe is empty!")
+            return False
+
         data.set_index('time',inplace=True)
 
         # concatenate to project dataframe and save
-        # this overwrites the previous so that only one copy exists of the .h5 file
+        # this overwrites the previous so that only one copy exists of the .pkl file
         self.data = pd.concat([self.data,data],sort=False)
         fname = os.path.join(self.project_directory,'data.pkl')
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             self.data.to_pickle(fname)
-
             # data.to_hdf(fname,key='step_{}'.format(i))
 
         # save data from the present step into it's own csv file
-        file_name = os.path.join(
-            self.project_directory, 'Step {}.csv'.format(i))
+        file_name = os.path.join(self.project_directory, 'Step {} - {}.csv'.format(i,'Conductivity' if 'z' in data.keys() else 'Thermopower'))
+        
+        
         with open(file_name, 'w', newline="") as f:
             f.write('project_name: {}\n'.format(self.project_name))
             f.write('start: {}\n'.format(datetime.strftime(
@@ -502,7 +525,7 @@ class Experiment(Laboratory):
                 sep=',',
                 )
 
-        return data
+        return True
 
     def _create_directory(self):
         project_folder = os.path.join(config.DATA_DIR, self.project_name)
@@ -520,7 +543,7 @@ class Experiment(Laboratory):
         :param indicated: current indicated temperature on furnace
         :type indicated: float
         """
-        # avoid boolean expression if indicted is None, will cause exception otherwise
+        # avoid boolean expression if indicated is None, will cause exception otherwise
         if not indicated:
             return
 
@@ -537,7 +560,7 @@ class Experiment(Laboratory):
         :type controlfile: pd.DataFrame
         """
         columns = set(list(controlfile.columns.values))
-        exp_numeric = ['target_temp', 'heat_rate', 'interval', 'offset']
+        exp_numeric = ['target_temp', 'heat_rate', 'interval', 'offset','thermopower']
         exp_str = ['buffer', 'fo2_gas']
         # expected = set().union(exp_numeric, exp_str)
         expected = set([*exp_numeric, *exp_str, 'hold_length'])
@@ -583,6 +606,10 @@ class Experiment(Laboratory):
                 logger.error("Found an unexpected gas type:  '{}'".format(val))
                 logger.debug('    Must be one of {}'.format(gas_types))
                 return False
+
+
+        # TODO Check what gas ratios are required and if they are feasible
+
 
         return True
 
