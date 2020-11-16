@@ -6,7 +6,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import warnings
 
-# GEO_FACTOR = 0.037571538461538455
 
 def to_complex_z(re, im):
     return re + 1j*im
@@ -28,3 +27,21 @@ def get_resistance(model):
         result[p] = val
 
     return sum([val for element, val in result.items() if element.startswith('R')])
+
+def model_conductivity(freq, complex_z, cutoff, circuit, guess):
+    """Takes a row of the dataframe and return the model object, the resistance and the rmse.
+
+    Args:
+        row ([type]): [description]
+
+    Returns:
+        model: the model object
+        resistance: calculated resistance
+        rmse: the root mean square error on the resistance
+    """
+    f, z = pp.cropFrequencies(np.array(freq), complex_z, cutoff)
+    f, z = pp.ignoreBelowX(f, z)
+    model = model_impedance(circuit,guess,f, z)
+    rmse = fitting.rmse(z, model.predict(f))
+    resistance = get_resistance(model)
+    return model, resistance, rmse
