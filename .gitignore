@@ -17,6 +17,8 @@ run.py
 .vscode
 log/*
 *.env
+*ipynb
+*.docx
 
 *.pot
 *.pyc
