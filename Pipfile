@@ -19,6 +19,8 @@ pyvisa = "*"
 impedance = "*"
 jupyterlab = "*"
 xlrd = "*"
+dash = "*"
+dash-bootstrap-components = "*"
 
 [requires]
 python_version = "3"
