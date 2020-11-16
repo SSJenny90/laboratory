@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "laboratory"
+version = "0.1.0"
+description = "Controlling software for the Conductive Earth Laboratory at the University of Adelaide."
+authors = ["SSJenny90 <samuel.scott.jennings@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.7"
+alicat = "^0.2.10"
+matplotlib = "^3.3.3"
+pyserial = "^3.4"
+numpy = "^1.19.4"
+pandas = "^1.1.4"
+scipy = "^1.5.4"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
