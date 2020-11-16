@@ -308,18 +308,18 @@ def load_data(project_folder):
 def process_data(data, sample_area, sample_thickness):
     if isinstance(data, list):
         data = pd.DataFrame(data)
-    # if data.shape[0] > 1:
-    #     # print(data.time.head())
-    #     data['time_elapsed'] = data.index - data.index[0]
-    # else:
-    #     data['time_elapsed'] = pd.Timedelta(0)
-        
-    # data.set_index('time_elapsed', inplace=True)
-    # print(data.head())
-    # data.set_index('time', inplace=True)
     
+    if 'time' in data.keys():
+        data.set_index('time', inplace=True)
+
+        if data.shape[0] > 1:
+            data['time_elapsed'] = data.index - data.index[0]
+        else:
+            data['time_elapsed'] = pd.Timedelta(0)
+        
     data['temp'] = data[['thermo_1','thermo_2']].mean(axis=1)
     data['kelvin'] = data.temp+273.18
+    data['gradient'] = data.thermo_1 - data.thermo_2
     data['actual_fugacity'] = data.apply(lambda x: actual_fugacity(x), axis=1)
     data['complex_z'] = data.apply(lambda x: to_complex_z(x), axis=1)
     # data['resistance'] = data.apply(lambda x: fit_impedance(x,offset=5), axis=1)

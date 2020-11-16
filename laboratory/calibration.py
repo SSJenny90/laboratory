@@ -15,46 +15,46 @@ from scipy.optimize import curve_fit
 logger = loggers.lab(__name__)
 
 
-def stage_temperature_profile(temperature=500, step=.1, mins_per_step=10, start_position=4000, end_position=6000):
+def stage_temperature_profile(temperature=500, step=.2, mins_per_step=10, start_position=2000, end_position=8000):
     """Records the temperature of both electrodes (te1 and te2) as the sample is moved from one end of the stage to the other. Used to find the center of the stage or the xpos of a desired temperature gradient when taking thermopower measurements.
     """
     lab = laboratory.Laboratory()
-    logger.info(
-        'Beginning calibration of stage temperature profile at {} degrees.\n'.format(temperature))
+    logger.info('Beginning calibration of stage temperature profile at {} degrees.\n'.format(temperature))
 
     total_steps = (end_position-start_position)/(step*200)
-
-    wait_time = timedelta(hours=8)
+    wait_time = timedelta(hours=3)
 
     logger.info('Estimated completion time: {}\n'.format(datetime.strftime(datetime.now(
     ) + timedelta(minutes=total_steps*mins_per_step) + wait_time, '%H:%M %A, %b %d')))
-    lab.furnace.timer_status('reset')
+
+    # lab.furnace.timer_status('run')
+    # lab.furnace.timer_duration(hours=1, seconds=wait_time.seconds)
+    # lab.furnace.reset_timer()
+
     # set the furnace to the desired temperature
     lab.furnace.setpoint_1(temperature)
-    lab.furnace.display(2)  # setdisplay to show time remaining
+
     # send the stage to the requested start position
     lab.stage.go_to(start_position)
 
     # hold here for an hour to let the temperature equilibrate
-    time.sleep(wait_time.seconds)
+    # time.sleep(wait_time.seconds)
+    time.sleep(15*60)
 
     # the furnace will revert to it's default temp if the timer expires
     # set timer duration to 3 x step length
+    # lab.furnace.timer_type('dwell') 
     lab.furnace.timer_duration(seconds=3*mins_per_step*60)
 
-    data = {'xpos': [], 'thermo_1': [], 'thermo_2': []}
-
+    data = []
     xpos = start_position
     while xpos < end_position:
         lab.furnace.reset_timer()
 
-        # save the stage position and temperature data
-        data['xpos'].append(xpos)
-        T = lab.daq.get_temp()
-        data['thermo_1'].append(T['thermo_1'])
-        data['thermo_2'].append(T['thermo_2'])
-
-        print(xpos, T['thermo_1'], T['thermo_2'])
+        d = {'x_position': xpos,**lab.daq.get_temp()}
+        print(*d.values())
+        data.append(d)
+        
         # move the stage and wait for the next cycle
         lab.stage.move(step)
         xpos = lab.stage.position
@@ -92,7 +92,7 @@ def plot_temperature_profile():
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    x = data['xpos']
+    x = data['x_position']
     te1 = data['thermo_1']
     te2 = data['thermo_2']
 
@@ -107,6 +107,7 @@ def plot_temperature_profile():
     plt.legend()
     plt.show()
 
+    return data
 
 def gradient_profile():
     calibration_file = os.path.join(config.CALIBRATION_DIR, 'furnace_profile.pkl')
@@ -118,7 +119,7 @@ def gradient_profile():
     else:
         data = pickle.load(f)
         f.close()
-        return data.thermo_1 - data.thermo_2
+        return np.polyfit(data.x_position,data.thermo_1 - data.thermo_2, 1)
 
 
 def find_indicated(temperature):

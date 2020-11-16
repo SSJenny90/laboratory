@@ -61,8 +61,12 @@ def index_temp(T, Tx):
 def voltage(data, step=None, bars=False, time=[], kwargs={}):
     """Plots voltage versus time"""
     data = index_data(data,step,time)
+    fig, ax1 = plt.subplots(1)
 
-    fig, ax = plt.subplots()
+    # color = 'tab:red'
+    # ax1.set_ylabel('Stage Position', color=color)
+    # ax1.plot(data.x_position,color=color,)
+    # ax1.tick_params(axis='y', labelcolor=color)
 
     # ax.plot(data['voltage'], 'rx')
     if bars:
@@ -703,7 +707,8 @@ class LivePlot1():
     def voltage(self, ax):
         ax = format_time_axis(ax)
         self.volt, = ax.plot(*self.x(),'.', label='Voltage')
-        ax.set_ylabel('Voltage [mV]')
+        ax.set_ylabel(r'$Voltage [\mu V]$')
+        ax.set_ylim([-1000,1000])
         ax.tick_params(direction='in')
         # ax.set_xlim(left=0)
         # ax.set_xlabel('Time Elapsed [hours]')
@@ -758,26 +763,7 @@ class LivePlot2():
         self.fig.tight_layout()
         self.draw()
 
-    # def update_bottom(self, z, theta):
-
-    #     Re, Im = processing.get_Re_Im(z, theta)
-
-    #     # update cole plot
-    #     self.cole.set_data(Re/1000, Im/1000)
-
-
-    #     # update bode plot
-    #     self.bode_z.set_data(self.freq[:len(z)], z)
-    #     self.bode_theta.set_data(self.freq[:len(z)], np.degrees(np.abs(theta)))
-
-    #     #recalculate all axes limits
-    #     for ax in [self.ax['cole'], *self.ax['bode']]:
-    #         ax.relim()
-    #         ax.autoscale_view()
-
-    #     self.draw()
-
-    def update(self, data, area, thickness,freq=2000):
+    def update(self, data, area, thickness, freq=2000):
         # recalls the figure in case it was closed
         # self.fig = plt.figure('Live Plot 1')
         data = processing.process_data(data, area, thickness)
@@ -827,10 +813,7 @@ class LivePlot2():
         # ax.set_title('Cole-Cole')
         ax.legend()
 
-
         # cb = fig.colorbar(p, ax=ax, orientation="horizontal")
-
-
 
         # ax.axis('equal')
         # ax.set_ylabel(r'$-Im(Z) [k\Omega]$')
@@ -846,7 +829,7 @@ class LivePlot2():
         ax1.set_ylabel(r'$Re(Z) [k\Omega]$', color=color)
         ax1.tick_params(axis='y', labelcolor=color)
         ax1.set_xlabel('Frequency [Hz]')
-        ax1.set_xlim(left=0, right=self.freq.max())
+        ax1.set_xlim(right=self.freq.max())
         
 
         ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis

@@ -23,7 +23,7 @@ DAQ = {
     },
     'thermistor': 10,
     'temp_integration_time':10,
-    'volt_integration_time':1,
+    'volt_integration_time':10,
 }
 
 #-------------------LCR settings-------------------

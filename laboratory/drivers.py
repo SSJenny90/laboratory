@@ -8,6 +8,8 @@ import pickle
 from functools import wraps
 import numpy as np
 from datetime import timedelta
+import time
+
 
 from serial.tools import list_ports
 import minimalmodbus
@@ -22,19 +24,18 @@ from laboratory.utils.exceptions import (CalibrationError,
 
 logger = loggers.lab(__name__)
 
-def command(func):
+def instrument_command(func):
     @wraps(func)
     def wrapper(*args,**kwargs):
         for i in range(config.GLOBAL_MAXTRY):
-            if kwargs.get('message'):
-                logger.debug('\t{}...'.format(kwargs.get('message')))
             try:
                 return func(*args,**kwargs)
-                # return self.device.query_ascii_values(command)
             except Exception as e:
                 if i == config.GLOBAL_MAXTRY-1:
-                    logger.error('Error: "{}" failed! Check log for details'.format(kwargs.get('message')))
-                    logger.debug(InstrumentReadError(e))
+                    logger.error('Error: Communication with the {} failed! Check log for details'.format(args[0].__class__.__name__))
+                    logger.error(InstrumentReadError(e))
+                    if kwargs.get('message'):
+                        logger.error(kwargs['message'])
                     return False
     return wrapper
 
@@ -60,32 +61,15 @@ class USBSerialInstrument():
     def __str__(self):
         return '\n'.join([key+": "+str(val) for key, val in self.__dict__.items()])
 
+    @instrument_command
     def read(self, command, message=''):
-        for i in range(config.GLOBAL_MAXTRY):
-            if message:
-                logger.debug('\t{}...'.format(message))
-            try:
-                return self.device.query_ascii_values(command)
-            except Exception as e:
-                if i == config.GLOBAL_MAXTRY-1:
-                    logger.error(
-                        'Error: "{}" failed! Check log for details'.format(message))
-                    logger.debug(InstrumentReadError(e))
-                    return False
+        logger.debug('\t{}...'.format(message))
+        return self.device.query_ascii_values(command)
 
+    @instrument_command
     def write(self, command, message='', val='\b\b\b  '):
-        for i in range(config.GLOBAL_MAXTRY):
-            if message:
-                logger.debug('\t{} to {}'.format(message, val))
-            try:
-                self.device.write(command)  # sets format to ascii
-                return True
-            except Exception as e:
-                if i == config.GLOBAL_MAXTRY-1:
-                    logger.error(
-                        'Error: "{}" failed! Check log for details'.format(message))
-                    logger.debug(InstrumentWriteError(e))
-                    return False
+        logger.debug('\t{} to {}'.format(message, val))
+        self.device.write(command)  # sets format to ascii
 
     def read_string(self, command, message=''):
         for i in range(config.GLOBAL_MAXTRY):
@@ -133,7 +117,7 @@ class LCR(USBSerialInstrument):
         """Collects complex impedance from the LCR meter"""
         self.trigger()
         line = self.read('FETCh?')
-        return {key: float('nan') if value == 9.9e+37 else value for key, value in zip(['z', 'theta'], line)}
+        return {key: np.nan if value == 9.9e+37 else value for key, value in zip(['z', 'theta'], line)}
 
     def configure(self, freq=None):
         """Appropriately configures the LCR meter for measurements"""
@@ -153,7 +137,6 @@ class LCR(USBSerialInstrument):
         """Triggers the next measurement"""
         return self.write('TRIG:IMM')
 
-    # @command
     def write_freq(self, freq):
         """Writes the desired frequencies to the LCR meter
 
@@ -273,24 +256,44 @@ class DAQ(USBSerialInstrument):
         :returns: [tref,te1,te2]
         :rtype: list of floats (degrees Celsius)
         """
-        command = 'ROUT:SCAN (@{},{},{})'.format(self.tref, self.te1, self.te2)
+        channels = [self.tref,self.te1, self.te2]
+        command = 'ROUT:SCAN (@{})'.format(','.join(channels))
+        self.write('TRIG:COUNT 1')
         self.write(command)
+
         data = self.read('READ?', 'Getting temperature data')
         if data:
             return {k: v for k, v in zip(['reference', 'thermo_1', 'thermo_2'], data)}
         else:
             return [np.nan]*3
             
-    def get_voltage(self):
+    def get_voltage(self,count=20,seconds=None):
         """Gets voltage across the sample from the DAQ
 
-        :returns: voltage
+        :returns: voltage [microvolts]
         :rtype: float
         """
         self.write('ROUT:SCAN (@{})'.format(self.volt))
-        voltage = self.read('READ?', 'Getting voltage data')
-        if voltage:
-            return {'voltage': voltage[0]}
+
+        if seconds:
+            self.write('TRIG:COUNT INFINITY')
+            self.write('INIT')
+            time.sleep(seconds)
+            self.write('ABORt')
+        else:
+            self.write('TRIG:COUNT {}'.format(count))
+            self.write('INIT')
+
+
+        time.sleep(10)
+        x = self.read('FETCh?')
+        if x:
+            x = np.array(x[1:]) * 10e3
+            result = {'voltage':x.mean().round(3), 'volt_stderr': x.std(ddof=1).round(3)}
+            if seconds:
+                result.update(volt_count=len(x))
+
+        return result
 
     def get_thermopower(self):
         """Collects both temperature and voltage data and returns a dict"""
@@ -388,6 +391,7 @@ class Furnace(minimalmodbus.Instrument):
 
     def __init__(self):
         self.port = config.FURNACE_ADDRESS
+        # self.target = self.default_temp
         try:
             super().__init__(self.port, 1)
         except Exception as e:
@@ -397,9 +401,11 @@ class Furnace(minimalmodbus.Instrument):
         else:
             logger.info('{} connected at {}'.format(
                 self.__class__.__name__, self.port))
-            self.close_port_after_each_call = True
+            # self.close_port_after_each_call = True
             self.serial.baudrate = 9600
+            # self.command(276,1) #set to remote setpoint
             self.status = True
+            self.configure()
 
     def __str__(self):
         return '\n'.join([key+": "+str(val) for key, val in self.__dict__.items()])
@@ -407,11 +413,11 @@ class Furnace(minimalmodbus.Instrument):
     def configure(self):
         """Configures the furnace based on settings specified in the configuration file"""
         logger.debug('Configuring furnace...')
-        self.setpoint_2()
+        # self.setpoint_2()
         self.setpoint_select('setpoint_1')
-        self.display(2)
+        self.display(1)
         self.timer_type('dwell')
-        self.timer_end_type('transfer')
+        self.timer_end_type('current')
         self.timer_resolution('M:S')
         self.timer_status('reset')
 
@@ -435,11 +441,17 @@ class Furnace(minimalmodbus.Instrument):
         :returns: True if succesful, False if not
         """
         display_options = [0, 1, 2, 3, 4, 5, 6, 7]
-        if display_type in display_options:
-            return self._write(address, display_type, 'Setting display type')
-        else:
-            logger.info('Incorrect argument for variable "display_type". Must be one of {}'.format(
-                display_options))
+        return self.command(address, 
+            value = display_type,
+            message = 'display type', 
+            options = {str(v): v for v in display_options})
+
+
+        # if display_type in display_options:
+        #     return self.command(address, display_type, message='Setting display type')
+        # else:
+        #     logger.info('Incorrect argument for variable "display_type". Must be one of {}'.format(
+        #         display_options))
 
     def heating_rate(self, heat_rate=None, address=35, decimals=1):
         """If heat_rate is specified, this method sets the heating rate of the furnace.
@@ -457,24 +469,23 @@ class Furnace(minimalmodbus.Instrument):
         >>> lab.furnace.heating_rate()
         5.0
         """
-        return self._command(heat_rate, address, 'heating rate', decimals=decimals)
-        # if heat_rate: return self._write(address,heat_rate,'Setting heating rate',decimals=1)
-        # else: return self._read(address,'Getting heating rate',decimals=1)
+        return self.command(address, 
+            value = heat_rate,
+            message = 'heating rate',
+            decimals=decimals)
 
     def indicated(self, address=1):
         """[Query only] Queries the current temperature of furnace.
 
         :returns: Temperature in °C if succesful, else False
         """
-        return self._read(address, 'Getting temperature')
+        return self.command(address, message='setpoint 1')
 
     def reset_timer(self):
         """Resets the current timer and immediately restarts. Used in for loops to reset the timer during every iteration. This is a safety measure should the program lose communication with the furnace.
         """
         if self.timer_status('reset'):
             return self.timer_status('run')
-        else:
-            return False
 
     def setpoint_1(self, temperature=None, address=24):
         """If temperature is specified, this method sets the target temperature of setpoint 1. If no argument is passed it queries the current target of setpoint 1.
@@ -491,7 +502,7 @@ class Furnace(minimalmodbus.Instrument):
         >>> lab.furnace.setpoint_1()
         400
         """
-        return self._command(temperature, address, 'setpoint 1')
+        return self.command(address, temperature, message='setpoint 1')
 
     def setpoint_2(self, temperature=None, address=25):
         """If temperature is specified, this method sets the target temperature of setpoint 2. If no argument is passed it queries the current target of setpoint 2.
@@ -511,8 +522,16 @@ class Furnace(minimalmodbus.Instrument):
         >>> lab.furnace.setpoint_2()
         25.0
         """
-        return self._command(temperature, address, 'setpoint 2')
+        return self.command(address, temperature, message='setpoint 2')
 
+    def remote_setpoint(self, temperature=None):
+        """If temperature is specified, this method sets the target temperature of the remote setpoint. 
+
+        :param temperature: temperature in °C
+        :type temperature: float, int
+
+        """
+        return self.command(modbus_address=26, value=temperature, message='remote setpoint')
 
     def setpoint_select(self, selection=None, address=15):
         """If selection is specified, selects the current working setpoint. If no argument is passed, it returns the current working setpoint.
@@ -525,7 +544,10 @@ class Furnace(minimalmodbus.Instrument):
         :type selection: str
 
         """
-        return self._command(selection, address, 'current setpoint', {'setpoint_1': 0, 'setpoint_2': 1})
+        return self.command(address, 
+            value = selection,
+            message = 'current setpoint', 
+            options = {'setpoint_1': 0, 'setpoint_2': 1})
 
     def timer_duration(self, hours=0, minutes=0, seconds=0, address=324):
         """Sets the length of the timer.
@@ -537,12 +559,16 @@ class Furnace(minimalmodbus.Instrument):
         :type timer_type: int,float (floats internally converted to int)
         """
         td = timedelta(hours=hours, minutes=minutes, seconds=seconds)
-        if td.total_seconds() > 99*60+59:
-            logger.info(
-                "Can't set timer to more than 100 minutes at the current resolution")
-            return False
+        if td.total_seconds() >= 100*60:
+            self.timer_resolution('H:M')
+            value = td.total_seconds()/60
         else:
-            return self._command(td.total_seconds(), address, 'timer duration')
+            self.timer_resolution('M:S')
+            value = td.total_seconds()
+
+        return self.command(address, 
+            value = value,
+            message = 'timer duration',)
 
     def timer_end_type(self, selection=None, address=328):
         """Determines the behavior of the timer. The default configuration in this program is to dwell. If selection is specified, the timer end type will be set accordingly. If no argument is passed, it returns the current end type of the timer.
@@ -568,7 +594,10 @@ class Furnace(minimalmodbus.Instrument):
         >>> lab.furnace.timer_type()
         'dwell'
         """
-        return self._command(selection, address, 'timer end type', {'off': 0, 'current': 1, 'transfer': 2})
+        return self.command(address, 
+            value = selection,
+            message = 'timer end type', 
+            options = {'off': 0, 'current': 1, 'transfer': 2})
 
     def timer_resolution(self, selection=None, address=320):
         """Determines whether the timer display is in Hours:Mins or Mins:Seconds
@@ -580,7 +609,10 @@ class Furnace(minimalmodbus.Instrument):
         :param selection: desired configuration
         :type selection: str
         """
-        return self._command(selection, address, 'timer resolution', {'H:M': 0, 'M:S': 1})
+        return self.command(address, 
+            value = selection,
+            message = 'timer resolution', 
+            options = {'H:M': 0, 'M:S': 1})
 
     def timer_status(self, status=None, address=23):
         """Controls the furnace timer. If status is specified, the timer status will be set accordingly. If no argument is passed, it returns the current status of the timer.
@@ -604,12 +636,10 @@ class Furnace(minimalmodbus.Instrument):
         >>> lab.furnace.setpoint_1()
         400
         """
-        # TODO fix this ^^^^
-
-        if status == 'end':
-            raise ValueError(
-                '"end" is not a valid option for controlling the timer. Please refer to the furnace documentation.')
-        return self._command(status, address, 'timer status', {'reset': 0, 'run': 1, 'hold': 2})
+        return self.command(address, 
+            value = status,
+            message = 'timer status', 
+            options = {'reset': 0, 'run': 1, 'hold': 2})
 
     def timer_type(self, selection=None, address=320):
         """Determines the behavior of the timer. The default configuration in this program is to dwell. If status is specified, the timer status will be set accordingly. If no argument is passed, it returns the current status of the timer.
@@ -632,24 +662,10 @@ class Furnace(minimalmodbus.Instrument):
         >>> lab.furnace.timer_type()
         'dwell'
         """
-        return self._command(selection, address, 'timer type', {'off': 0, 'dwell': 1, 'delay': 2, 'soft_start': 3})
-
-    def other(self, address, value=None):
-        '''Set value at specified modbus address.
-
-        :param modbus_address: see furnace manual for adresses
-        :type modbus_address: float, int
-
-        :param val: value to be sent to the furnace
-        :type val: float, int
-
-        :returns: True if succesful, False if not
-        :rtype: Boolean
-        '''
-        if value is not None:
-            return self._write(address, value, 'Setting address {}'.format(address))
-        else:
-            return self._read(address, 'Getting address {}'.format(address))
+        return self.command(address, 
+            value = selection,
+            message = 'timer type', 
+            options = {'off': 0, 'dwell': 1, 'delay': 2, 'soft_start': 3})
 
     def flush_input(self):
         logger.debug('Flushing furnace input')
@@ -663,44 +679,33 @@ class Furnace(minimalmodbus.Instrument):
         self.setpoint_1(40)
         self.timer_status('reset')
 
-    def _command(self, value, address, message, options={}, decimals=0):
-        if value:
-            return self._write(address, options.get(value,value), 'Setting {}'.format(message), decimals=decimals)
+    def reconnect(self):
+        self.__init__()
+
+    @instrument_command
+    def command(self, modbus_address, value=None, options={}, message='', decimals=0):
+        '''Set or read value at specified modbus address.
+
+        :param modbus_address: see furnace manual for adresses
+        :type modbus_address: float, int
+
+        :param value: value to be sent to the furnace
+        :type value: float, int
+
+        If a value is supplied it will return True if the command was succesful. If a value is not supplied, it will return the output of the instrument at specified modbus address.
+        '''
+        if value is not None:
+            # print(modbus_address, options.get(value,value), decimals)
+            logger.debug('Setting {} of furnace.'.format(message))
+            self.write_register(modbus_address, options.get(value,value), number_of_decimals=decimals)
+            return True
         else:
-            output = self._read(address, 'Getting {}'.format(message), decimals=decimals)
-            if not options:
-                return output
-            else:
-                for k, v in options.items():
-                    if v == value:
-                        return k
-
-    def _write(self, modbus_address, value, message, decimals=0):
-
-        for i in range(config.GLOBAL_MAXTRY):
-            try:
-                self.write_register(modbus_address, value,
-                                    number_of_decimals=decimals)
-            except Exception as e:
-                if i == config.GLOBAL_MAXTRY-1:
-                    logger.error(
-                        '\tError: "{}" failed! Check log for details'.format(message))
-                    logger.debug(InstrumentWriteError(e))
-            else:
-                logger.debug('\t{} to {}'.format(message, value))
-                return True
-
-    def _read(self, modbus_address, message, decimals=0):
-        for i in range(config.GLOBAL_MAXTRY):
-            try:
-                values = self.read_register(modbus_address, number_of_decimals=decimals)
-            except Exception as e:
-                if i == config.GLOBAL_MAXTRY-1:
-                    logger.error('\t"{}" failed! Check log for details'.format(message))
-                    logger.error(InstrumentReadError(e))
-            else:
-                logger.debug('\t{} succesful'.format(message))
-                return values
+            logger.debug('Getting {} from furnace.'.format(message))
+            output = self.read_register(modbus_address, number_of_decimals=decimals)
+            for k, v in options.items():
+                if v == output:
+                    return k
+            return output
 
 
 class Stage():
@@ -723,7 +728,8 @@ class Stage():
         self.pulse_equiv = config.STAGE['pitch'] * \
             config.STAGE['step_angle'] / (360*config.STAGE['subdivision'])
         self.max_xpos = config.STAGE['max_stage_position']
-        self.home = self._get_equilibrium_position()
+        self.profile = self.get_temp_profile()
+        self.home = self.find_gradient_position(0)
         self._connect(ports)
         self.go_to(self.home)
 
@@ -732,14 +738,12 @@ class Stage():
 
     @property
     def position(self):
-        return self._read('?X', 'Getting x-position')
-
+        return self.command('?X', 'Getting x-position')
 
     def find_gradient_position(self,target_gradient):
-        data = self.get_temp_profile()
-        gradient = np.abs(data.thermo_1 - data.thermo_2)
-        idx = (np.abs(gradient-target_gradient)).argmin()
-        return data.position.iloc[idx]
+        data = self.profile
+        m, b = np.polyfit(data.x_position,data.thermo_1 - data.thermo_2, 1)
+        return int(round((target_gradient-b)/m))
 
     def get_temp_profile(self):
         calibration_file = os.path.join(config.CALIBRATION_DIR, 'furnace_profile.pkl')
@@ -752,24 +756,6 @@ class Stage():
             data = pickle.load(f)
             f.close()
         return data
-
-    def _get_equilibrium_position(self):
-        calibration_file = os.path.join(
-            config.CALIBRATION_DIR, 'furnace_profile.pkl')
-        try:
-            f = open(calibration_file, 'rb')  # Overwrites any existing file.
-        except FileNotFoundError:
-            logger.warning(
-                'WARNING: The linear stage requires calibration in order to find the position where both thermocouples sit at the peak temperature.')
-        else:
-            data = pickle.load(f)
-            f.close()
-            try:
-                idx = np.argwhere(np.diff(
-                    np.sign(np.array(data['thermo_1']) - np.array(data['thermo_2'])))).flatten()[0]
-                return int(data.iloc[idx]['xpos'])
-            except KeyError:
-                return self.max_xpos / 2
 
     def _connect(self, ports):
         """
@@ -806,8 +792,7 @@ class Stage():
                     return
 
     def is_connected(self):
-        if self.Ins.query_ascii_values('?R', converter='s')[0] == '?R\rOK\n':
-            return True
+        return self.command('?R')
 
     def center(self):
         """Moves stage to the absolute center"""
@@ -828,7 +813,7 @@ class Stage():
         :type displacement: float, int
         """
         command = self._convertdisplacement(displacement)
-        return self._write(command, 'Moving stage {}mm'.format(displacement))
+        return self.command(command, 'Moving stage {}mm'.format(displacement))
 
     def go_to(self, position):
         """Go to an absolute position on the linear stage
@@ -862,7 +847,7 @@ class Stage():
         else:
             return False
 
-        return self._write('X{0:+}'.format(displacement), 'Setting x-position')
+        return self.command('X{0:+}'.format(displacement), 'Setting x-position')
 
     def speed(self, stage_speed=None):
         """Get or set the speed of the stage
@@ -872,22 +857,21 @@ class Stage():
         """
         # this is a get request
         if stage_speed is None:
-            speed = self._read('?V', 'Getting stage speed...')
-            # needs to be converted to mm/s
+            speed = self.command('?V', 'Getting stage speed')
             return self._convertspeed(speed, False)
         # this is a set request
         else:
             command = self._convertspeed(stage_speed)
-            return self._write(command, 'Setting stage speed')
+            return self.command(command, 'Setting stage speed')
 
-    def return_home(self):
+    def go_home(self):
         """Moves furnace to the center of the stage (x = 5000)
         """
-        return self.position(self.home)
+        return self.go_to(self.home)
 
     def reset(self):
         """Resets the stage position so that the absolute position = 0"""
-        return self._write('HX0', 'Resetting stage...')
+        return self.command('HX0', 'Resetting stage...')
 
     def _convertdisplacement(self, displacement):
         """Converts a positive or negative displacement (in mm) into a command recognisable by the stage"""
@@ -907,41 +891,16 @@ class Stage():
         else:
             return round((speed+1)*self.pulse_equiv/0.03, 2)  # output speed
 
-    def _write(self, command, message):
-
-        for i in range(config.GLOBAL_MAXTRY):
-            try:
-                self.Ins.clear()
-                response = self.Ins.query_ascii_values(
-                    command, converter='s')[0]
-            except Exception as e:
-                if i == config.GLOBAL_MAXTRY-1:
-                    logger.error(
-                        'Error: "{}" failed! Check log for details'.format(message))
-                    logger.debug(InstrumentWriteError(e))
-                    return
-            else:
-                if 'OK' in response:
-                    logger.debug('{}...'.format(message))
-                    return True
-
-    def _read(self, command, message):
-
-        for i in range(config.GLOBAL_MAXTRY):
-            try:
-                self.Ins.clear()
-                response = self.Ins.query_ascii_values(
-                    command, converter='s')[0]
-            except Exception as e:
-                if i == config.GLOBAL_MAXTRY-1:
-                    logger.error(
-                        '\tError: "{}" failed! Check log for details'.format(message))
-                    logger.debug(InstrumentWriteError(e))
-                    return
-            else:
-                if not 'ERR' in response:
-                    logger.debug('\t{}...'.format(message))
-                    return int(''.join(x for x in response if x.isdigit()))
+    @instrument_command
+    def command(self,command,message=''):
+        self.Ins.clear()
+        response = self.Ins.query_ascii_values(command, converter='s')[0]
+        if 'OK' in response:
+            return True
+        elif not 'ERR' in response:
+            return int(''.join(x for x in response if x.isdigit()))
+        else:
+            raise InstrumentReadError("Something wen't wrong")
 
 
 class AlicatController(FlowController):
@@ -976,21 +935,10 @@ class AlicatController(FlowController):
     def __str__(self):
         return '\n'.join([key+": "+str(val) for key, val in self.__dict__.items() if key not in ['keys', 'gases', 'connection']])
 
-    def get(self):
+    @instrument_command
+    def data(self):
         self.flush()
-        for i in range(config.GLOBAL_MAXTRY):
-            try:
-                logger.debug('Retrieving {} data...'.format(self.name))
-                vals = super().get(retries=config.GLOBAL_MAXTRY)
-            except Exception as e:
-                if i == config.GLOBAL_MAXTRY-1:
-                    logger.error(
-                        'Retrieving {} data failed! Check log for details'.format(self.name))
-                    logger.error(InstrumentReadError(e))
-                    return {}
-            else:
-                del vals['gas']
-                return vals
+        return super().get(retries=config.GLOBAL_MAXTRY)
 
     def mass_flow(self):
         """
@@ -999,7 +947,7 @@ class AlicatController(FlowController):
         float
             Mass flow in ccm
         """
-        return self.get()['mass_flow']
+        return self.data().get('mass_flow',None)
 
     def pressure(self):
         """
@@ -1008,7 +956,7 @@ class AlicatController(FlowController):
         float
             Pressure in psia.
         """
-        return self.get()['pressure']
+        return self.data.get('pressure',None)
 
     def temperature(self):
         """
@@ -1017,7 +965,7 @@ class AlicatController(FlowController):
         float
             Temperature of the gas in degrees C
         """
-        return self.get()['temperature']
+        return self.data.get('temperature',None)
 
     def volumetric_flow(self):
         """
@@ -1026,7 +974,7 @@ class AlicatController(FlowController):
         float
             Volumetric flow in CCM.
         """
-        return self.get()['volumetric_flow']
+        return self.data.get('volumetric_flow',None)
 
     def setpoint(self, setpoint=None):
         """Get or set the current setpoint of the flowmeter
@@ -1043,7 +991,7 @@ class AlicatController(FlowController):
         """
         self.flush()
         if setpoint is None:
-            return self.get()['setpoint']
+            return self.data.get('setpoint',None)
 
         elif setpoint > self.upper_limit:
             raise ValueError('{setpoint} is an invalid flow rate. {name} has an upper limit of {limit} SCCM'.format(
@@ -1058,15 +1006,9 @@ class AlicatController(FlowController):
         """Sets the massflow to 0 on the current controller"""
         return self.setpoint(0)
 
+    @instrument_command
     def _command(self, command):
-
-        for i in range(1, config.GLOBAL_MAXTRY):
-            try:
-                self._write_and_read(command)
-                return True
-            except Exception as e:
-                if i == config.GLOBAL_MAXTRY:
-                    logger.error('Error: {}{}'.format(self.name, e))
+        self._write_and_read(command)
 
 
 class GasControllers():
@@ -1198,16 +1140,15 @@ class GasControllers():
         if gas_type == 'h2':
             ratio = processing.fugacity_h2(log_fugacity, temp)
 
-            # if 1/10**config.H2['precision']*ratio >= config.CO2['upper_limit']:
-            #     co2 = 200
-            #     h2 = 1/10**config.H2['precision']
-
-            if 10*ratio >= config.CO2['upper_limit']:
+            if ratio < 0.5:
+                h2 = 50
+                co2 = h2*ratio
+            elif ratio < 4:
+                h2 = 25
+                co2 = h2*ratio
+            else:
                 co2 = 200
                 h2 = co2/ratio
-
-            co2 = 200
-            h2 = co2/ratio
 
             self.set_all({'h2': h2,
                           'co2': co2,
@@ -1220,11 +1161,14 @@ class GasControllers():
             # set the optimal co2 flow rate
             # higher ratios require higher co2 mass flow for greater precision
             if ratio > 1000:
-                co2 = 200
-            elif ratio > 100:
+                # co2 = 200
                 co2 = 100
-            else:
+            elif ratio > 100:
+                # co2 = 100
                 co2 = 50
+            else:
+                # co2 = 50
+                co2 = 25
 
             if co2/ratio >= 20:
                 co2 = 20*ratio
@@ -1239,6 +1183,7 @@ class GasControllers():
 
             if co:
                 logger.debug('Desired ratio: {} Actual: {}'.format(ratio, co2/co))
+
             self.set_all({'co2': co2,
                           'co_a': int(co),
                           'co_b': round(co - int(co), 3),

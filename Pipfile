@@ -20,6 +20,8 @@ impedance = "*"
 jupyterlab = "*"
 xlrd = "*"
 statsmodels = "*"
+dash = "*"
+dash-bootstrap-components = "*"
 
 [requires]
 python_version = "3"
