@@ -4,17 +4,17 @@ import dash_bootstrap_components as dbc
 import dash_daq as daq
 from dash.dependencies import Input, Output
 from app import app, lab
-
-layout = html.Div(id='home',children=[
-    html.H1('Welcome to the Conductive Earth Laboratory!', className='display-5 text-center'),
+import components as comp
+layout = [
+    comp.header('Home'),
     daq.PowerButton(id='my-power-button',
         on=False,
         size=150,
         label='Connect Instruments'
     ),
     html.Div(id='power-button-output',className='d-none')
-],
-)
+]
+
 
 @app.callback(
     Output('power-button-output', 'children'),

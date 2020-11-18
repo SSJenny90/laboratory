@@ -5,67 +5,47 @@ import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 import dash_daq as daq
 from dash.dependencies import Input, Output
-
+import components as comp
 from app import app, lab 
 
 def flow_meter(id):
-    return dbc.CardBody(id=id,
-        children=[
-            dbc.Card([
-            dbc.CardHeader(daq.LEDDisplay(id=f'{id}-mass_flow',
-                label="Flow Rate [CCM]",
-                value=0.00,
-                size=100,
-            )),
-            dbc.CardBody([
-                html.H3(id.upper(),className='card-title text-center'),
-
-            ])
-
+    return html.Div(className="col-xl-3 col-md-6 mb-4", children=[ 
+        html.Div(
+            id=id,
+            # className="card shadow mb-4",
+            className="card border-left-warning shadow h-100 mb-4",
+            children=[
+            html.Div(
+                className="card-header py-3 d-flex flex-row align-items-center justify-content-between",
+                children = [
+                    html.H6(
+                        children=id.upper(),
+                        className='m-0 font-weight-bold text-primary'
+                    ),
             ]),
-        ],
-        className="my-3 w-50",
-        )
+            dbc.CardBody(
+                daq.LEDDisplay(id=f'{id}-mass_flow',
+                    label="Flow Rate [CCM]",
+                    value=f"0.00",
+                    size=100,
+                )),
+            ]),
+    ])
 
-# layout = html.Div(id='flow-controllers',
-#     children= [
-#         dbc.Row([
-#             dbc.Col([
-#                 html.H1('Flow Controllers'),
-#             ],width=4, className='bg-secondary'),
-#             dbc.Col([
-#                 dbc.CardDeck([
-#                     flow_meter('co_a'),
-#                     flow_meter('co2'),
-#                     flow_meter('co_b'),
-#                     flow_meter('h2'),
-#                 ])
-#             ],width=8),
-#         ],style={'min-height':'calc(100vh - 56px)'}),
-#         dcc.Interval(
-#             id='gas-updater',
-#             interval=1*1000, # in milliseconds
-#             n_intervals=0
-#         )
-#     ]
-# )
-layout = dbc.Container(id='flow-controllers',
-    children= [
-        dbc.Row([
-            dbc.CardDeck([
-                flow_meter('co_a'),
-                flow_meter('co2'),
-                flow_meter('co_b'),
-                flow_meter('h2'),
-            ],className='w-100')
-        ],style={'min-height':'calc(100vh - 56px)'}),
-        dcc.Interval(
-            id='gas-updater',
-            interval=1*1000, # in milliseconds
-            n_intervals=0
-        )
-    ]
-)
+layout = [
+    comp.header('Alicat Flow Controllers'),
+    html.Div(id='flow-controllers', className='row', children=[
+        flow_meter('co_a'),
+        flow_meter('co_b'),
+        flow_meter('co2'),
+        flow_meter('h2'),
+    ]),
+    dcc.Interval(
+        id='gas-updater',
+        interval=1*1000, # in milliseconds
+        n_intervals=0
+    )
+]
 
 @app.callback([
         Output('co_a-mass_flow', 'value'),
